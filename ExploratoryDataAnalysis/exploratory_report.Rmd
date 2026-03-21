@@ -1,0 +1,252 @@
+---
+title: 'Exploratory Data Analysis'
+author: "Alex Czerkawski"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+## Dataset choice
+
+For this assignment, we will be using the Chemical Manufacturing Process
+dataset. This dataset was taken from Applied Predictive Models (APM)
+Chapter 1.4.
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+library(tidyverse)
+
+```
+
+## Data set fields description
+
+**Outcomes:**
+
+-   **Yield** (continuous) = Final product yield. A summary of this
+    column is:
+
+```{r,echo=FALSE}
+summary(ChemicalManufacturingProcess$Yield)
+```
+
+**Predictors:**
+
+-   **BiologicalMaterial01** (Continuous) = Measurement one of the biological 
+    starting material. A summary of this column is:
+
+```{r,echo=FALSE}
+summary(ChemicalManufacturingProcess$BiologicalMaterial01)
+```
+
+-   **BiologicalMaterial02** (Continuous) = Measurement two of the biological 
+    starting material. A summary of this column is:
+
+```{r,echo=FALSE}
+summary(ChemicalManufacturingProcess$BiologicalMaterial02)
+```
+
+-   **BiologicalMaterial03** (Continuous) = Measurement three of the biological 
+    starting material. A summary of this column is:
+
+```{r,echo=FALSE}
+summary(ChemicalManufacturingProcess$BiologicalMaterial03)
+```
+
+-   **BiologicalMaterial04** (Continuous) = Measurement four of the biological 
+    starting material. A summary of this column is:
+
+```{r,echo=FALSE}
+summary(ChemicalManufacturingProcess$BiologicalMaterial04)
+```
+
+-   **BiologicalMaterial07** (Categorical) = Measurement seven of the biological 
+    starting material, taking the values:
+
+```{r,echo=FALSE}
+unique(ChemicalManufacturingProcess$BiologicalMaterial07)
+```
+
+-   **ManufacturingProcess01** (Continuous) = Measurement one of the 
+    manufacturing process. A summary of this column is:
+
+```{r,echo=FALSE}
+summary(ChemicalManufacturingProcess$ManufacturingProcess01)
+```
+
+-   **ManufacturingProcess02** (Categorical) = Measurement two of the 
+    manufacturing process. Examples of some values include:
+
+```{r,echo=FALSE}
+head(unique(ChemicalManufacturingProcess$ManufacturingProcess02))
+```
+There are a total of
+
+```{r,echo=FALSE}
+length(unique(ChemicalManufacturingProcess$ManufacturingProcess02))
+```
+
+values.
+
+-   **ManufacturingProcess03** (Continuous) = Measurement three of the 
+    manufacturing process. A summary of this column is:
+
+```{r,echo=FALSE}
+summary(ChemicalManufacturingProcess$ManufacturingProcess03)
+```
+
+-   **ManufacturingProcess04** (Continuous) = Measurement four of the 
+    manufacturing process. A summary of this column is:
+
+```{r,echo=FALSE}
+summary(ChemicalManufacturingProcess$ManufacturingProcess04)
+```
+
+-   **ManufacturingProcess12** (Categorical) = Measurement twelve of the 
+    manufacturing process, taking the values:
+
+```{r,echo=FALSE}
+unique(ChemicalManufacturingProcess$ManufacturingProcess12)
+```
+
+## **CoNVO statement**
+
+Pfizer is a pharmaceutical manufacturing company. Maximizing yield in
+manufacturing vaccines is important. The industrial engineering team at Pfizer
+is trying to understand what stages of their manufacturing process impact
+yields the most. They will use this information to make strategic decisions
+about what stages of the process need upgraded equipment to improve accuracy.
+
+Manufacturing vaccines is a very complicated process. There are many sequential
+operations, many of which impact the yield of a batch. Pfizer wants to determine
+which factors make the most difference. The difficulty is that there are complex
+interactions between factors, and manufacturing processes differ by the material
+properties.
+
+The project will use historical data on process yields (Chemical Manufacturing
+Process dataset) to explore the effects of each factor on yield. These
+relationships will be visualized through several plots to find potential
+relationships. If a relationship is found, it will be reported to the IE team
+who will determine how to improve that process or material property for a
+larger yield.
+
+If the head of the Pfizer IE team is happy with initial results, a deeper
+analysis will be conducted to determine which interactions between material 
+properties and manufacturing processes have the largest impact on yields. This
+analysis will be delivered to them every quarter to determine growth
+opportunities when it comes to yields.
+
+## Pairs plot
+
+```{r, echo=FALSE}
+set.seed(1)
+ChemicalManufacturingProcess <- ChemicalManufacturingProcess %>%
+  mutate(across(
+    c(BiologicalMaterial07, ManufacturingProcess02, ManufacturingProcess12),
+    as.factor
+  ))
+ChemManCols <- ChemicalManufacturingProcess %>% select(Yield, BiologicalMaterial01, 
+                                              BiologicalMaterial02, BiologicalMaterial03,
+                                              BiologicalMaterial04, BiologicalMaterial07,
+                                              ManufacturingProcess01, ManufacturingProcess02,
+                                              ManufacturingProcess03, ManufacturingProcess04,
+                                              ManufacturingProcess12) %>% 
+                                              rename(BM1 = BiologicalMaterial01, 
+                                                     BM2 = BiologicalMaterial02,
+                                                     BM3 = BiologicalMaterial03,
+                                                     BM4 = BiologicalMaterial04,
+                                                     BM7 = BiologicalMaterial07,
+                                                     MP1 = ManufacturingProcess01, 
+                                                     MP2 = ManufacturingProcess02,
+                                                     MP3 = ManufacturingProcess03,
+                                                     MP4 = ManufacturingProcess04,
+                                                     MP12 = ManufacturingProcess12
+                                                     )
+pairs(ChemManCols %>% slice_sample(n=40))
+```
+
+## Identify an outcome and three predictor variables
+
+The outcome variable is yield.
+
+We will choose BiologicalMaterial02, ManufacturingProcess02, and 
+ManufacturingProcess12 as they appear uncorrelated with each other and are
+highly correlated with the outcome.
+
+## Explore the variables by applying four plot types
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(ChemicalManufacturingProcess, aes(x=Yield)) + geom_histogram() +
+  labs(
+    x = "Product Yield of Chemical Manufacturing Process"
+    )
+```
+
+The histogram above is used to visualize the distribution of Yield values. Most
+fall between 37.5 and 42.5.
+
+```{r, echo=FALSE}
+ggplot(ChemicalManufacturingProcess %>% drop_na(), 
+       aes(
+         x=BiologicalMaterial02, 
+         y=Yield)
+    ) + geom_point(size=1) + labs(
+    x = "Measurement of Biological Material 2",
+    y = "Product Yield of Chemical Manufacturing Process"
+    )
+```
+
+Generally, there is a positive correlation between Biological Material 2 and
+Yield. When the measurement for Biological Material 2 is higher, Yield tends
+to be higher.
+
+```{r, echo=FALSE}
+ggplot(ChemicalManufacturingProcess %>% drop_na(), 
+       aes(
+         x=ManufacturingProcess02, 
+         y=Yield,
+         color=BiologicalMaterial02)
+    ) + geom_point(size=1) + labs(
+    x = "Measurement of Manufacturing Process 2",
+    y = "Product Yield of Chemical Manufacturing Process"
+    )
+```
+
+This graph shows the interaction between Biological Material 2 and Manufacturing
+Process 2 as it related to the Yield. The majority of measurements for process 2
+are between 17.5 and 22.5, with about 10 at 0. The points that are non-zero 
+tend to have similar yields to the zero values.
+
+```{r, echo=FALSE}
+ggplot(ChemicalManufacturingProcess %>% 
+    filter(!is.na(ManufacturingProcess12)), 
+       aes(
+         x=ManufacturingProcess12, 
+         y=Yield)
+    ) + geom_boxplot() + labs(
+    x = "Measurement of Manufacturing Process 12",
+    y = "Product Yield of Chemical Manufacturing Process"
+    )
+```
+
+When Manufacturing Process 12 is measured at 4549, the mean and right tail are 
+larger than when it is measured at 0.
+
+## Causal relationships
+
+We see a positive relationship between biological material 2 and yield. There is
+likely some causality there, though it's unclear as there's no information about 
+what biological material 2 actual measures.
+
+There doesn't seem to be much of a relationship between manufacturing process 2
+and yield. Measurements of zero and all other measurements didn't seem to make a
+difference in yield. There may be a slight negative relationship in the non-zero
+group of measurements in manufacturing process 2. Similar to above, there is no
+information about what manufacturing process 2 is measuring, which makes it
+difficult to determine causality.
+
+There seems to be a relationship between manufacturing process 12 and yield.
+When manufacturing process 12 was measured at 0, the mean yield was about 2 less
+than when it's measured at 4549. Again, it's difficult to determine causality
+since it's unclear what the variables are measuring.
