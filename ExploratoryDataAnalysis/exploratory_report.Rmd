@@ -140,16 +140,16 @@ sort(unique(df$Day.of.Week))
 
 Note that 1 corresponds to Monday.
 
--   **Scheduled.Departure.Time** (Continuous) = 
+-   **Scheduled.Departure.Time** (Continuous) = Minutes since midnight when a flight was scheduled to depart the gate. A summary of this column is:
 
 ```{r,echo=FALSE}
-head(unique(df$Scheduled.Departure.Time))
+summary(df$Scheduled.Departure.Time)
 ```
 
--   **scheduled.Arrival.Time** (Continuous) = 
+-   **Scheduled.Arrival.Time** (Continuous) = Minutes since midnight when a flight was scheduled to arrive at the gate. A summary of this column is:
 
 ```{r,echo=FALSE}
-
+summary(df$Scheduled.Arrival.Time)
 ```
 
 -   **Scheduled.Block.Time** (Continuous) = Amount of time the flight is schedule to take, including taxi out and taxi in time. A summary of this column is:
@@ -180,7 +180,10 @@ values.
 
 ```{r, echo=FALSE}
 set.seed(1)
-
+df <- df %>% mutate(across(c(Report_Month, Day.of.Week), as.factor))
+pairs_df <- df %>% select(Departure.Delay, Report_Month, Day.of.Week, Scheduled.Departure.Time,
+                          Scheduled.Block.Time)
+pairs(pairs_df %>% slice_sample(n=1000))
 ```
 
 ## Identify an outcome and three predictor variables
