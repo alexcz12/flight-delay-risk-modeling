@@ -40,8 +40,14 @@ df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
                     Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
                     Scheduled.Arrival.Time = (Scheduled.Arrival.Time %/% 100) * 60 + (Scheduled.Arrival.Time %% 100),
                     Actual.Departure.Time = (Actual.Departure.Time %/% 100) * 60 + (Actual.Departure.Time %% 100),
-                    Actual.Arrival.Time = (Actual.Arrival.Time %/% 100) * 60 + (Actual.Arrival.Time %% 100)
+                    Actual.Arrival.Time = (Actual.Arrival.Time %/% 100) * 60 + (Actual.Arrival.Time %% 100),
+                    Day.of.Week = factor(Day.of.Week, 
+                                          levels = 1:7, 
+                                          labels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")),
+                    cancelled = ifelse(Actual.Block.Time == 0, 1, 0)
                     )
+cancelled <- df %>% filter(cancelled == 1)
+not_cancelled <- df %>% filter(cancelled == 0)
 ```
 
 ## Data set fields description
@@ -52,14 +58,14 @@ df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
 time and actual departure time. A summary of this column is:
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-summary(df$Departure.Delay)
+summary(not_cancelled$Departure.Delay)
 ```
 
 -   **Arrival.Delay** (continuous) = Difference between scheduled arrival
 time and actual arrival time. A summary of this column is:
 
 ```{r,echo=FALSE}
-summary(df$Arrival.Delay)
+summary(not_cancelled$Arrival.Delay)
 ```
 
 **Predictors:**
@@ -67,13 +73,13 @@ summary(df$Arrival.Delay)
 -   **Marketing.flt.num** (Categorical) = Four digit number used by United Airlines to identify a market. Some values include: 
 
 ```{r,echo=FALSE}
-head(unique(df$Marketing.flt.num))
+head(unique(not_cancelled$Marketing.flt.num))
 ```
 
 There are a total of
 
 ```{r,echo=FALSE}
-length(unique(df$Marketing.flt.num))
+length(unique(not_cancelled$Marketing.flt.num))
 ```
 
 values.
@@ -81,19 +87,19 @@ values.
 -   **Operating.Airline** (Categorical) = Airline that operates the flight. This includes United (UA) and their regional partners. Operating.Airline takes the values:
 
 ```{r,echo=FALSE}
-unique(df$Operating.Airline)
+unique(not_cancelled$Operating.Airline)
 ```
 
 -   **Operating.flt.num** (Categorical) = Four digit number used by the operating airline to identify a market. Some values include: 
 
 ```{r,echo=FALSE}
-head(unique(df$Operating.flt.num))
+head(unique(not_cancelled$Operating.flt.num))
 ```
 
 There are a total of
 
 ```{r,echo=FALSE}
-length(unique(df$Operating.flt.num))
+length(unique(not_cancelled$Operating.flt.num))
 ```
 
 values.
@@ -101,13 +107,13 @@ values.
 -   **Dep** (Categorical) = Three letter IATA code that defines the departure airport. Some values include:
 
 ```{r,echo=FALSE}
-head(unique(df$Dep))
+head(unique(not_cancelled$Dep))
 ```
 
 There are a total of
 
 ```{r,echo=FALSE}
-length(unique(df$Dep))
+length(unique(not_cancelled$Dep))
 ```
 
 values.
@@ -115,13 +121,13 @@ values.
 -   **Arr** (Categorical) = Three letter IATA code that defines the arrival airport. Some values include:
 
 ```{r,echo=FALSE}
-head(unique(df$Arr))
+head(unique(not_cancelled$Arr))
 ```
 
 There are a total of
 
 ```{r,echo=FALSE}
-length(unique(df$Arr))
+length(unique(not_cancelled$Arr))
 ```
 
 values.
@@ -129,45 +135,43 @@ values.
 -   **Report_Month** (Categorical) = Month the flight is scheduled in, taking the values:
 
 ```{r,echo=FALSE}
-sort(unique(df$Report_Month))
+sort(unique(not_cancelled$Report_Month))
 ```
 
 -   **Day.of.Week** (Categorical) = Day of the week the flight is scheduled on, taking the values:
 
 ```{r,echo=FALSE}
-sort(unique(df$Day.of.Week))
+levels(not_cancelled$Day.of.Week)
 ```
-
-Note that 1 corresponds to Monday.
 
 -   **Scheduled.Departure.Time** (Continuous) = Minutes since midnight when a flight was scheduled to depart the gate. A summary of this column is:
 
 ```{r,echo=FALSE}
-summary(df$Scheduled.Departure.Time)
+summary(not_cancelled$Scheduled.Departure.Time)
 ```
 
 -   **Scheduled.Arrival.Time** (Continuous) = Minutes since midnight when a flight was scheduled to arrive at the gate. A summary of this column is:
 
 ```{r,echo=FALSE}
-summary(df$Scheduled.Arrival.Time)
+summary(not_cancelled$Scheduled.Arrival.Time)
 ```
 
 -   **Scheduled.Block.Time** (Continuous) = Amount of time the flight is schedule to take, including taxi out and taxi in time. A summary of this column is:
 
 ```{r,echo=FALSE}
-summary(df$Scheduled.Block.Time)
+summary(not_cancelled$Scheduled.Block.Time)
 ```
 
 -   **Tail.Num** (Categorical) = Unique identifier for the aircraft. Some values include:
 
 ```{r,echo=FALSE}
-head(unique(df$Tail.Num))
+head(unique(not_cancelled$Tail.Num))
 ```
 
 There are a total of
 
 ```{r,echo=FALSE}
-length(unique(df$Tail.Num))
+length(unique(not_cancelled$Tail.Num))
 ```
 
 values.
@@ -180,24 +184,69 @@ values.
 
 ```{r, echo=FALSE}
 set.seed(1)
-df <- df %>% mutate(across(c(Report_Month, Day.of.Week), as.factor))
-pairs_df <- df %>% select(Departure.Delay, Report_Month, Day.of.Week, Scheduled.Departure.Time,
-                          Scheduled.Block.Time)
-pairs(pairs_df %>% slice_sample(n=1000))
+pairs_df <- not_cancelled %>% select(Departure.Delay, Report_Month, Day.of.Week, Scheduled.Departure.Time, Scheduled.Block.Time)
+pairs(pairs_df %>% slice_sample(n=500))
 ```
 
 ## Identify an outcome and three predictor variables
 
 The outcome variable is Departure.Delay.
 
-
+The predictor variables 
 
 ## Explore the variables by applying four plot types
 
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(not_cancelled, aes(x = pmin(Departure.Delay, 250))) +
+  geom_histogram(bins = 50, color = "white") +
+  labs(x = "Departure Delay")
+```
+
+The histogram above shows how Departure Delays are distributed. This distribution is heavily skewed to the right, as 75% of the delay values are less than 5 minutes. Note: The max value Departure.Delay took was 2081. The tail is much longer than visualized but is grouped into a bucket at 250 minutes.
+
+```{r, echo=FALSE}
+ggplot(not_cancelled, mapping = aes(x = pmin(Departure.Delay, 250))) +
+  geom_histogram(bins = 50, color = "white") +
+  facet_wrap(~ Report_Month) +
+  labs(x = "Departure Delay")
+```
+
+The above 
+
+```{r, echo=FALSE}
+ggplot(not_cancelled %>% filter(Departure.Delay < 250)
+       , aes(x=Day.of.Week, y=Departure.Delay)) + geom_boxplot() + 
+  labs(
+    x = "Day of Week",
+    y = "Departure Delay"
+    )
+```
+
+
+
+```{r, echo=FALSE}
+set.seed(1)
+ggplot(not_cancelled %>% slice_sample(n=10000), aes(x=Scheduled.Block.Time, y=Departure.Delay)) + geom_point(size=1) + 
+  labs(
+    x = "Scheduled Block Time",
+    y = "Departure Delay"
+    )
+```
+
+
+
 ## Single plot that shows the effects of all three predictors
+
+
 
 ## Causal relationships
 
+
+
 ## Difficulties preparing the data
 
+
+
 ## Improved analysis
+
+To improve this analysis, I would like to combine this 
