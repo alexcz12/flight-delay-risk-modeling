@@ -178,12 +178,18 @@ values.
 
 ## **CoNVO statement**
 
+United Airlines operates thousands of flights every day across a large and complex network, and identifying flights at high risk of delay months in advance is a key challenge for the network planning team. Having better visibility into which flights are likely to be delayed is an important step toward building more reliable and operationally efficient schedules.
 
+Understanding what drives flight delays will improve foresight into where and when delays are most likely to occur. This will help highlight routes and markets that are consistently delayed, giving planning teams a clearer picture of where the network is underperforming. With this information, better long-term scheduling decisions can be made that improve on-time performance and reduce delays have across the network.
+
+Using historical flight data, we will build a model that predicts both the probability and intensity of departure delays for flights across the network. By identifying the key factors that contribute to delays, the model will give network planning teams the information they need to adjust routes and time slots where schedule changes could improve reliability and operational performance.
+
+Preliminary results will be presented to a VP in Network Planning. If successful, the model will be run across all flights in the network on an ongoing basis, giving planning teams regular insights into where delays are expected and where schedules may need to be adjusted. The long term goal is to make this model a regular part of the network planning process to help the team build better schedules and reduce delays across the network.
 
 ## Pairs plot
 
 ```{r, echo=FALSE}
-set.seed(1)
+set.seed(2)
 pairs_df <- not_cancelled %>% select(Departure.Delay, Report_Month, Day.of.Week, Scheduled.Departure.Time, Scheduled.Block.Time)
 pairs(pairs_df %>% slice_sample(n=500))
 ```
@@ -192,7 +198,7 @@ pairs(pairs_df %>% slice_sample(n=500))
 
 The outcome variable that was selected is Departure.Delay. Another possible variable that could be looked at is Arrival.Delay, though the predictors in the dataset are better applied to departure delays.
 
-The predictor variables that were selected are 
+The predictor variables that were selected are Report_Month, Day.of.Week and Scheduled.Departure.Time as they appear to be uncorrelated but each have a relationship with the outcome Departure.Delay.
 
 ## Explore the variables by applying four plot types
 
@@ -261,6 +267,7 @@ The plot above shows how all 3 variables combine to effect departure delays. Whi
 ## Causal relationships
 
 ```{r, echo=FALSE}
+# Used claude to make this plot look nice. I came up with all the relationships myself
 library(ggdag)
 
 dag <- dagify(
@@ -274,16 +281,41 @@ dag <- dagify(
   Departure_Delay ~ Aircraft_Delayed_all_day,
   Busy_Travel_Days ~ Day_of_Week,
   Days_with_more_flights ~ Busy_Travel_Days,
-  Departure_Delay ~ Days_with_more_flights,
+  Aircrafts_breaking ~ Days_with_more_flights,
+  More_aggressive_schedule ~ Days_with_more_flights,
   Busy_Travel_Months ~ Month,
   Months_with_more_flights ~ Busy_Travel_Months,
-  Departure_Delay ~ Months_with_more_flights
+  Aircrafts_breaking ~ Months_with_more_flights,
+  More_aggressive_schedule ~ Months_with_more_flights,
+  Departure_Delay ~ Aircrafts_breaking,
+  Less_buffer ~ More_aggressive_schedule,
+  Departure_Delay ~ Less_buffer,
+  coords = list(
+    x = c(
+      Time_of_Day = 0, Time_Banks = 1, Congestion_on_Tarmac = 2, Long_Taxi_In = 3, Late_Aircraft = 4,
+      Morning_Delays = 1, Aircraft_Delayed_all_day = 2,
+      Day_of_Week = 0, Busy_Travel_Days = 1, Days_with_more_flights = 2, 
+      Aircrafts_breaking = 3, More_aggressive_schedule = 3, Less_buffer = 4,
+      Month = 0, Busy_Travel_Months = 1, Months_with_more_flights = 2,
+      Departure_Delay = 5
+    ),
+    y = c(
+      Time_of_Day = 4, Time_Banks = 4, Congestion_on_Tarmac = 4, Long_Taxi_In = 4, Late_Aircraft = 4,
+      Morning_Delays = 3, Aircraft_Delayed_all_day = 3,
+      Day_of_Week = 2, Busy_Travel_Days = 2, Days_with_more_flights = 2,
+      Aircrafts_breaking = 2, More_aggressive_schedule = 1, Less_buffer = 1,
+      Month = 0, Busy_Travel_Months = 0, Months_with_more_flights = 0,
+      Departure_Delay = 2
+    )
+  )
 )
 
-ggdag_classic(dag, size = 3) + theme_dag()
+ggdag_classic(dag, size = 2) + 
+  theme_dag() +
+  labs(title = "Causal Diagram for Departure Delay")
 ```
 
-
+The causal diagram above shows some of the possible causal relationships between the variables. For both month and week, there are naturally days where flying is more in demand. Airlines will provide more flights during these periods, which results in a higher maintanence rate and a more agressive schedule which includes less buffer between flights to make up lost time earlier in the day. When looking at time of day, cascading delays (flights delayed early in the day resulting in late aircraft and delays later in the day) as well as busy times on the tarmac (United has a "bank" structure which contributes at hubs, though traffic from all airlines causes this) result in aircraft arriving late at the gate which cause the next outbound flight to depart late as well.
 
 ## Difficulties preparing the data
 
