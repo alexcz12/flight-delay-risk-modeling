@@ -190,9 +190,9 @@ pairs(pairs_df %>% slice_sample(n=500))
 
 ## Identify an outcome and three predictor variables
 
-The outcome variable is Departure.Delay.
+The outcome variable that was selected is Departure.Delay. Another possible variable that could be looked at is Arrival.Delay, though the predictors in the dataset are better applied to departure delays.
 
-The predictor variables 
+The predictor variables that were selected are 
 
 ## Explore the variables by applying four plot types
 
@@ -202,7 +202,7 @@ ggplot(not_cancelled, aes(x = pmin(Departure.Delay, 250))) +
   labs(x = "Departure Delay")
 ```
 
-The histogram above shows how Departure Delays are distributed. This distribution is heavily skewed to the right, as 75% of the delay values are less than 5 minutes. Note: The max value Departure.Delay took was 2081. The tail is much longer than visualized but is grouped into a bucket at 250 minutes.
+The histogram above shows how departure delays are distributed. This distribution is heavily skewed to the right, as 75% of the delay values are less than 5 minutes. Note: The max value Departure.Delay took was 2081. The tail is much longer than visualized but is grouped into a bucket at 250 minutes.
 
 ```{r, echo=FALSE}
 ggplot(not_cancelled, mapping = aes(x = pmin(Departure.Delay, 250))) +
@@ -211,7 +211,7 @@ ggplot(not_cancelled, mapping = aes(x = pmin(Departure.Delay, 250))) +
   labs(x = "Departure Delay")
 ```
 
-The above 
+The above facet grid of histograms shows how Departure Delays are distributed each month. September and October have significantly more flights departing on time compared to the summer months.
 
 ```{r, echo=FALSE}
 ggplot(not_cancelled %>% filter(Departure.Delay < 250)
@@ -220,33 +220,75 @@ ggplot(not_cancelled %>% filter(Departure.Delay < 250)
     x = "Day of Week",
     y = "Departure Delay"
     )
+not_cancelled %>% 
+  group_by(Day.of.Week) %>% 
+  summarise(p75 = quantile(Departure.Delay, 0.75),
+    p95 = quantile(Departure.Delay, 0.95))
 ```
 
-
+The box plots and table above show differences in percentiles between each day of the week. Tuesday and Wednesday have the smallest 75th percentiles (ex: 75% of Tuesday flights depart within 2 minutes of scheduled), with Thursday, Friday, and Sunday having the largest 75th percentiles.
 
 ```{r, echo=FALSE}
-set.seed(1)
-ggplot(not_cancelled %>% slice_sample(n=10000), aes(x=Scheduled.Block.Time, y=Departure.Delay)) + geom_point(size=1) + 
+set.seed(5)
+ggplot(not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=1000), aes(x=Scheduled.Departure.Time, y=Departure.Delay)) + geom_point(size=1) + 
   labs(
-    x = "Scheduled Block Time",
+    x = "Scheduled Departure Time",
     y = "Departure Delay"
     )
 ```
 
-
+The above scatterplot shows the relationship between departure delay and scheduled departure time. While it isn't a strong relationship in this sample, there seems to be more long delays later in the day.
 
 ## Single plot that shows the effects of all three predictors
 
+```{r, echo=FALSE}
+set.seed(5)
+ggplot(not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=5000), 
+       aes(x = Scheduled.Departure.Time, y = Departure.Delay)) + 
+  geom_point(size = 1) + 
+  facet_grid(Day.of.Week ~ Report_Month) +
+  labs(
+    x = "Scheduled Departure Time",
+    y = "Departure Delay",
+  ) + 
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank())
 
+```
+
+The plot above shows how all 3 variables combine to effect departure delays. While this plot is somewhat overwhelming to look at, it may be helpful in identifying trends on a daily level during certain times of year. For example, Wednesday afternoons during June and Saturday midday during January have a larger concentration of long delays than most other combinations. A view like this could be especially helpful when looking at the schedule of an individual airport to identify times of heavy congestion that may be impacting departure delays.
 
 ## Causal relationships
+
+```{r, echo=FALSE}
+library(ggdag)
+
+dag <- dagify(
+  Time_Banks ~ Time_of_Day,
+  Congestion_on_Tarmac ~ Time_Banks,
+  Long_Taxi_In ~ Congestion_on_Tarmac,
+  Late_Aircraft ~ Long_Taxi_In,
+  Departure_Delay ~ Late_Aircraft,
+  Morning_Delays ~ Time_of_Day,
+  Aircraft_Delayed_all_day ~ Morning_Delays,
+  Departure_Delay ~ Aircraft_Delayed_all_day,
+  Busy_Travel_Days ~ Day_of_Week,
+  Days_with_more_flights ~ Busy_Travel_Days,
+  Departure_Delay ~ Days_with_more_flights,
+  Busy_Travel_Months ~ Month,
+  Months_with_more_flights ~ Busy_Travel_Months,
+  Departure_Delay ~ Months_with_more_flights
+)
+
+ggdag_classic(dag, size = 3) + theme_dag()
+```
 
 
 
 ## Difficulties preparing the data
 
-
+Getting the data all in one table was difficult. Since the datasets were so large and came in asc files, they needed to be imported into excel by each month and then combined. There were too many rows for an excel sheet so they had to be combined using R and saved to a csv. Several variables needed to be converted to factors and month had to be manually calculated from the date. Times were also saved as hhmm, so all time variables had to be converted to minutes after 00:00.
 
 ## Improved analysis
 
-To improve this analysis, I would like to combine this 
+To improve this analysis, I would like to combine this with a weather dataset. This would present a whole new set of factors that impact delays. In further phases of the project, I will attempt to create new variables from the current dataset. For example, determining the taxi-in time during the previous hour at the station may be significant with departure delay with a confounding variable of congestion on the ramp at the airport.
