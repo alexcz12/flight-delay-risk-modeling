@@ -1,5 +1,6 @@
 ---
 title: 'Exploratory Data Analysis'
+
 author: "Alex Czerkawski"
 output: beamer_presentation
 fontsize: 10pt
@@ -49,19 +50,22 @@ cancelled <- df %>% filter(cancelled == 1)
 not_cancelled <- df %>% filter(cancelled == 0)
 ```
 
-## Relevant fields
+## Dataset info
 
+- Split out cancelled flights 
 - Departure Airport, Arrival Airport, 
 
 ## Pairs plot
 
+- Random sample of 1000 flights
+
 ```{r, echo=FALSE}
 set.seed(2)
 pairs_df <- not_cancelled %>% select(Departure.Delay, Report_Month, Day.of.Week, Scheduled.Departure.Time, Scheduled.Block.Time) %>% filter(Departure.Delay < 250)
-pairs(pairs_df %>% slice_sample(n=500))
+pairs(pairs_df %>% slice_sample(n=1000))
 ```
 
-## Histogram of Departure Delays
+## Histogram of departure delays
 
 ```{r, echo=FALSE,warning=FALSE,message=FALSE}
 ggplot(not_cancelled, aes(x = pmin(Departure.Delay, 250))) +
@@ -69,17 +73,122 @@ ggplot(not_cancelled, aes(x = pmin(Departure.Delay, 250))) +
   labs(x = "Departure Delay")
 ```
 
-##
+## Histograms of departure delays by month
+
+```{r, echo=FALSE}
+ggplot(not_cancelled, mapping = aes(x = pmin(Departure.Delay, 250))) +
+  geom_histogram(bins = 50, color = "white") +
+  facet_wrap(~ Report_Month) +
+  labs(x = "Departure Delay")
+```
+
+## Boxplot by day of week
+
+- Random sample of 10,000 flights
+- Filtered out flights that were delayed over 250 minutes
 
 ```{r, echo=FALSE}
 set.seed(5)
-ggplot(not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=1000), aes(x=Scheduled.Departure.Time, y=Departure.Delay)) + geom_point(size=1) + 
+ggplot(not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=10000)
+       , aes(x=Day.of.Week, y=Departure.Delay)) + geom_boxplot() + 
   labs(
-    x = "Scheduled Departure Time",
+    x = "Day of Week",
     y = "Departure Delay"
     )
+not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=10000) %>% 
+  group_by(Day.of.Week) %>% 
+  summarise(p75 = quantile(Departure.Delay, 0.75),
+    p95 = quantile(Departure.Delay, 0.95))
+```
+
+## Scatterplot of departure delay vs scheduled departure time at PIT
+
+- Filtered out flights that were delayed over 100 minutes
+
+```{r, echo=FALSE}
+ggplot(not_cancelled %>% filter(Departure.Delay < 100, Dep == "PIT"), aes(x=Scheduled.Departure.Time / 60, y=Departure.Delay)) + geom_point(size=1) + 
+  labs(
+    x = "Scheduled Departure Time (Hours)",
+    y = "Departure Delay"
+    ) +
+  geom_hline(yintercept = 0, color = "red")
+```
+
+## Histogram of delays by scheduled departure time at PIT
+
+```{r, echo=FALSE}
+ggplot(not_cancelled %>% filter(Departure.Delay > 0, Dep == "PIT"), 
+       aes(x = Scheduled.Departure.Time / 60)) +
+  geom_histogram(binwidth = 1, color = "white") +
+  labs(
+    x = "Scheduled Departure Time (Hours)",
+    y = "Delay Count"
+  )
+```
+
+## Departure delays by month, day of week, and scheduled departure time at PIT
+
+```{r, echo=FALSE}
+set.seed(5)
+ggplot(not_cancelled %>% filter(Departure.Delay < 250, Dep == 'PIT') %>% slice_sample(n=5000), 
+       aes(x = Scheduled.Departure.Time, y = Departure.Delay)) + 
+  geom_point(size = 1) + 
+  facet_grid(Day.of.Week ~ Report_Month) +
+  labs(
+    x = "Scheduled Departure Time",
+    y = "Departure Delay",
+  ) + 
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank())
+
 ```
 
 ## Causal relationships
 
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# Used claude to make this plot look nice. I came up with all the relationships myself
+library(ggdag)
 
+dag <- dagify(
+  Time_Banks ~ Time_of_Day,
+  Congestion_on_Tarmac ~ Time_Banks,
+  Long_Taxi_In ~ Congestion_on_Tarmac,
+  Late_Aircraft ~ Long_Taxi_In,
+  Departure_Delay ~ Late_Aircraft,
+  Morning_Delays ~ Time_of_Day,
+  Aircraft_Delayed_all_day ~ Morning_Delays,
+  Departure_Delay ~ Aircraft_Delayed_all_day,
+  Busy_Travel_Days ~ Day_of_Week,
+  Days_with_more_flights ~ Busy_Travel_Days,
+  Aircrafts_breaking ~ Days_with_more_flights,
+  More_aggressive_schedule ~ Days_with_more_flights,
+  Busy_Travel_Months ~ Month,
+  Months_with_more_flights ~ Busy_Travel_Months,
+  Aircrafts_breaking ~ Months_with_more_flights,
+  More_aggressive_schedule ~ Months_with_more_flights,
+  Departure_Delay ~ Aircrafts_breaking,
+  Less_buffer ~ More_aggressive_schedule,
+  Departure_Delay ~ Less_buffer,
+  coords = list(
+    x = c(
+      Time_of_Day = 0, Time_Banks = 1, Congestion_on_Tarmac = 2, Long_Taxi_In = 3, Late_Aircraft = 4,
+      Morning_Delays = 1, Aircraft_Delayed_all_day = 2,
+      Day_of_Week = 0, Busy_Travel_Days = 1, Days_with_more_flights = 2, 
+      Aircrafts_breaking = 3, More_aggressive_schedule = 3, Less_buffer = 4,
+      Month = 0, Busy_Travel_Months = 1, Months_with_more_flights = 2,
+      Departure_Delay = 5
+    ),
+    y = c(
+      Time_of_Day = 4, Time_Banks = 4, Congestion_on_Tarmac = 4, Long_Taxi_In = 4, Late_Aircraft = 4,
+      Morning_Delays = 3, Aircraft_Delayed_all_day = 3,
+      Day_of_Week = 2, Busy_Travel_Days = 2, Days_with_more_flights = 2,
+      Aircrafts_breaking = 2, More_aggressive_schedule = 1, Less_buffer = 1,
+      Month = 0, Busy_Travel_Months = 0, Months_with_more_flights = 0,
+      Departure_Delay = 2
+    )
+  )
+)
+
+ggdag_classic(dag, size = 2) + 
+  theme_dag()
+```
