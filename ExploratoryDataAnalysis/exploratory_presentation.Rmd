@@ -96,6 +96,11 @@ ggplot(not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=10000)
     x = "Day of Week",
     y = "Departure Delay"
     )
+```
+
+## Percentiles by day of week
+
+```{r, echo=FALSE}
 not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=10000) %>% 
   group_by(Day.of.Week) %>% 
   summarise(p75 = quantile(Departure.Delay, 0.75),
