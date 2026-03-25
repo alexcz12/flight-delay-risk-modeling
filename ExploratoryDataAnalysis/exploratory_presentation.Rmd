@@ -1,6 +1,6 @@
 ---
 title: 'Exploratory Data Analysis'
-
+subtitle: "Airline On-Time Performance"
 author: "Alex Czerkawski"
 output: beamer_presentation
 fontsize: 10pt
@@ -52,8 +52,9 @@ not_cancelled <- df %>% filter(cancelled == 0)
 
 ## Dataset info
 
-- Split out cancelled flights 
-- Departure Airport, Arrival Airport, 
+- Split out cancelled flights into a separate dataset
+- 1,434,047 rows, each corresponding to a departed flight
+- Relevant columns: Departure airport, Arrival airport, Day of week, Scheduled departure time, Scheduled arrival time, Scheduled block time, Report month, Departure delay, and Arrival delay
 
 ## Pairs plot
 
