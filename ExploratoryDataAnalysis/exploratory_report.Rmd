@@ -220,19 +220,20 @@ ggplot(not_cancelled, mapping = aes(x = pmin(Departure.Delay, 250))) +
 The above facet grid of histograms shows how Departure Delays are distributed each month. September and October have significantly more flights departing on time compared to the summer months.
 
 ```{r, echo=FALSE}
-ggplot(not_cancelled %>% filter(Departure.Delay < 250)
+set.seed(5)
+ggplot(not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=10000)
        , aes(x=Day.of.Week, y=Departure.Delay)) + geom_boxplot() + 
   labs(
     x = "Day of Week",
     y = "Departure Delay"
     )
-not_cancelled %>% 
+not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=10000) %>% 
   group_by(Day.of.Week) %>% 
   summarise(p75 = quantile(Departure.Delay, 0.75),
     p95 = quantile(Departure.Delay, 0.95))
 ```
 
-The box plots and table above show differences in percentiles between each day of the week. Tuesday and Wednesday have the smallest 75th percentiles (ex: 75% of Tuesday flights depart within 2 minutes of scheduled), with Thursday, Friday, and Sunday having the largest 75th percentiles.
+The box plots and table above show differences in percentiles between each day of the week. Tuesday and Wednesday have the smallest 75th percentiles (ex: 75% of Tuesday flights depart within 1 minutes of scheduled), with Thursday through Monday having larger 75th percentiles.
 
 ```{r, echo=FALSE}
 set.seed(5)
@@ -266,7 +267,7 @@ The plot above shows how all 3 variables combine to effect departure delays. Whi
 
 ## Causal relationships
 
-```{r, echo=FALSE}
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
 # Used claude to make this plot look nice. I came up with all the relationships myself
 library(ggdag)
 
@@ -311,8 +312,7 @@ dag <- dagify(
 )
 
 ggdag_classic(dag, size = 2) + 
-  theme_dag() +
-  labs(title = "Causal Diagram for Departure Delay")
+  theme_dag()
 ```
 
 The causal diagram above shows some of the possible causal relationships between the variables. For both month and week, there are naturally days where flying is more in demand. Airlines will provide more flights during these periods, which results in a higher maintanence rate and a more agressive schedule which includes less buffer between flights to make up lost time earlier in the day. When looking at time of day, cascading delays (flights delayed early in the day resulting in late aircraft and delays later in the day) as well as busy times on the tarmac (United has a "bank" structure which contributes at hubs, though traffic from all airlines causes this) result in aircraft arriving late at the gate which cause the next outbound flight to depart late as well.

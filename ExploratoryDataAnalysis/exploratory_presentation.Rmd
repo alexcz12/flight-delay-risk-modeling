@@ -5,18 +5,21 @@ output: beamer_presentation
 fontsize: 10pt
 ---
 
+## CoNVO overview
+
+- Identifying flights at high risk of delay months in advance is a key challenge for United Airlines' network planning team
+- Understanding delay drivers will highlight underperforming routes and markets to inform better scheduling decisions
+- A model will be built using historical flight data to predict the probability and intensity of departure delays
+- Model outputs will give the network planning team an expectation of delays so candidate schedules can be adjusted to balance an aggressive schedule with operational efficiency
+
 ## Dataset choice
 
-For this project, we will be using the Airline Service Quality
-Performance 234 dataset from the Bureau of Transportation Statistics.
-The data was reported by each carrier as mandated by the Bureauu of
-Transportation Statistics. The purpose is to make performance data
-available to airline consumers.
+- Airline Service Quality Performance 234 dataset from Bureau of Transportation Statistics
+- This dataset reports every flight in a month, when it was scheduled to leave/arrive, and when it actually left/arrived
+- Data is reported by each airline
+- For the scope of this project, we'll take United Airlines data between October 2024 and September 2025
 
-A collection of this data can be found at
 <https://www.bts.gov/browse-statistical-products-and-data/bts-publications/airline-service-quality-performance-234-time>.
-
-This project will use a year's worth of United Airlines data between October 2024 and September 2025.
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
 # This was used to save dataset to a csv
@@ -36,161 +39,47 @@ df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
                     Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
                     Scheduled.Arrival.Time = (Scheduled.Arrival.Time %/% 100) * 60 + (Scheduled.Arrival.Time %% 100),
                     Actual.Departure.Time = (Actual.Departure.Time %/% 100) * 60 + (Actual.Departure.Time %% 100),
-                    Actual.Arrival.Time = (Actual.Arrival.Time %/% 100) * 60 + (Actual.Arrival.Time %% 100)
+                    Actual.Arrival.Time = (Actual.Arrival.Time %/% 100) * 60 + (Actual.Arrival.Time %% 100),
+                    Day.of.Week = factor(Day.of.Week, 
+                                          levels = 1:7, 
+                                          labels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")),
+                    cancelled = ifelse(Actual.Block.Time == 0, 1, 0)
                     )
+cancelled <- df %>% filter(cancelled == 1)
+not_cancelled <- df %>% filter(cancelled == 0)
 ```
 
-## Data set fields description
+## Relevant fields
 
-**Outcomes:**
-
--   **Departure.Delay** (continuous) = Difference between scheduled departure
-time and actual departure time. A summary of this column is:
-
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
-summary(df$Departure.Delay)
-```
-
--   **Arrival.Delay** (continuous) = Difference between scheduled arrival
-time and actual arrival time. A summary of this column is:
-
-```{r,echo=FALSE}
-summary(df$Arrival.Delay)
-```
-
-**Predictors:**
-
--   **Marketing.flt.num** (Categorical) = Four digit number used by United Airlines to identify a market. Some values include: 
-
-```{r,echo=FALSE}
-head(unique(df$Marketing.flt.num))
-```
-
-There are a total of
-
-```{r,echo=FALSE}
-length(unique(df$Marketing.flt.num))
-```
-
-values.
-
--   **Operating.Airline** (Categorical) = Airline that operates the flight. This includes United (UA) and their regional partners. Operating.Airline takes the values:
-
-```{r,echo=FALSE}
-unique(df$Operating.Airline)
-```
-
--   **Operating.flt.num** (Categorical) = Four digit number used by the operating airline to identify a market. Some values include: 
-
-```{r,echo=FALSE}
-head(unique(df$Operating.flt.num))
-```
-
-There are a total of
-
-```{r,echo=FALSE}
-length(unique(df$Operating.flt.num))
-```
-
-values.
-
--   **Dep** (Categorical) = Three letter IATA code that defines the departure airport. Some values include:
-
-```{r,echo=FALSE}
-head(unique(df$Dep))
-```
-
-There are a total of
-
-```{r,echo=FALSE}
-length(unique(df$Dep))
-```
-
-values.
-
--   **Arr** (Categorical) = Three letter IATA code that defines the arrival airport. Some values include:
-
-```{r,echo=FALSE}
-head(unique(df$Arr))
-```
-
-There are a total of
-
-```{r,echo=FALSE}
-length(unique(df$Arr))
-```
-
-values.
-
--   **Report_Month** (Categorical) = Month the flight is scheduled in, taking the values:
-
-```{r,echo=FALSE}
-sort(unique(df$Report_Month))
-```
-
--   **Day.of.Week** (Categorical) = Day of the week the flight is scheduled on, taking the values:
-
-```{r,echo=FALSE}
-sort(unique(df$Day.of.Week))
-```
-
-Note that 1 corresponds to Monday.
-
--   **Scheduled.Departure.Time** (Continuous) = 
-
-```{r,echo=FALSE}
-head(unique(df$Scheduled.Departure.Time))
-```
-
--   **scheduled.Arrival.Time** (Continuous) = 
-
-```{r,echo=FALSE}
-
-```
-
--   **Scheduled.Block.Time** (Continuous) = Amount of time the flight is schedule to take, including taxi out and taxi in time. A summary of this column is:
-
-```{r,echo=FALSE}
-summary(df$Scheduled.Block.Time)
-```
-
--   **Tail.Num** (Categorical) = Unique identifier for the aircraft. Some values include:
-
-```{r,echo=FALSE}
-head(unique(df$Tail.Num))
-```
-
-There are a total of
-
-```{r,echo=FALSE}
-length(unique(df$Tail.Num))
-```
-
-values.
-
-## **CoNVO statement**
-
-
+- Departure Airport, Arrival Airport, 
 
 ## Pairs plot
 
 ```{r, echo=FALSE}
-set.seed(1)
-
+set.seed(2)
+pairs_df <- not_cancelled %>% select(Departure.Delay, Report_Month, Day.of.Week, Scheduled.Departure.Time, Scheduled.Block.Time) %>% filter(Departure.Delay < 250)
+pairs(pairs_df %>% slice_sample(n=500))
 ```
 
-## Identify an outcome and three predictor variables
+## Histogram of Departure Delays
 
-The outcome variable is Departure.Delay.
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(not_cancelled, aes(x = pmin(Departure.Delay, 250))) +
+  geom_histogram(bins = 50, color = "white") +
+  labs(x = "Departure Delay")
+```
 
+##
 
-
-## Explore the variables by applying four plot types
-
-## Single plot that shows the effects of all three predictors
+```{r, echo=FALSE}
+set.seed(5)
+ggplot(not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=1000), aes(x=Scheduled.Departure.Time, y=Departure.Delay)) + geom_point(size=1) + 
+  labs(
+    x = "Scheduled Departure Time",
+    y = "Departure Delay"
+    )
+```
 
 ## Causal relationships
 
-## Difficulties preparing the data
 
-## Improved analysis
