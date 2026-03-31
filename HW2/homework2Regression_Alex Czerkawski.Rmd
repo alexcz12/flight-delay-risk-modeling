@@ -1,0 +1,50 @@
+---
+title: 'Homework 1: Exploratory Data Analysis'
+author: "Alex Czerkawski"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+## Dataset choice
+
+For this assignment, we will be using the Chemical Manufacturing Process
+dataset. This dataset was taken from Applied Predictive Models (APM)
+Chapter 1.4.
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+library(tidyverse)
+library(AppliedPredictiveModeling)
+data(ChemicalManufacturingProcess)
+```
+
+## Identify an outcome variable to be predicted
+
+-   **Yield** (continuous) = Final product yield. A summary of this
+    column is:
+
+```{r,echo=FALSE}
+summary(ChemicalManufacturingProcess$Yield)
+```
+
+## Preprocessing
+
+```{r,echo=FALSE}
+
+```
+
+## Model Fitting
+
+```{r, echo=FALSE}
+
+```
+
+## Model comparison
+
+
+
+## Recommendation
+

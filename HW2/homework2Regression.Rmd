@@ -1,0 +1,34 @@
+---
+title: 'Homework 2: Regression'
+author: "IE 2064 Data Science"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+1.  Load the `ChemicalManufacturingProcess` dataset from Applied Predictive Models (APM) Chapter 1.4.
+2.  Identify a variable that you will attempt to predict using regression.
+    i. Name
+    ii. Short, one sentence description
+    iii. Description of potential values (include data type and units)
+    iv. mean, median, quartiles, range if applicable
+    v. histogram/density plot
+3.  Appropriately preprocess the data
+4.  Use 10 fold cross validation to fit a model from each of the following 
+categories:
+    i. Linear models
+        a.  Linear regression
+        b.  Lasso
+        c.  Ridge regression
+    ii. Non-linear models
+        a.  Support Vector Machines (SVM)
+        b.  Neural Nets
+        c.  Multivariate Adaptive Regression Splines (MARS)
+        d.  K-nearest Neighbors (KNN)
+    iii. Trees:
+        a.  Regression tree
+        b.  Random forests
+
+5. Compare each of the models in terms of their complexity and cross-validated
+RMSE
+6. Which model would you recommend using and why?
