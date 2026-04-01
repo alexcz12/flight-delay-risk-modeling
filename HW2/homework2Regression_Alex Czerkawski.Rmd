@@ -34,12 +34,14 @@ summary(df$Yield)
 
 ## Preprocessing
 
+The ChemicalManufacturingProcess data frame was pre-processed by removing all rows with missing values. Further pre-processing was applied when each model was fitted.
+
 ```{r,echo=FALSE}
 df <- df %>% filter(!if_any(everything(), is.na))
 dfX <- df %>% select(-Yield)
 ```
 
-## Model Fitting
+## Linear Regression
 
 ```{r, echo=FALSE}
 ctrl <- trainControl(method = "cv", number = 10)
@@ -50,6 +52,8 @@ lmTune <- train(Yield ~., df,
                   preProc = c('center', 'scale'))
 lmTune
 ```
+
+## Lasso
 
 ```{r, echo=FALSE}
 # Lasso
@@ -66,6 +70,8 @@ lassoTune <- train(x = (dfX), y = df$Yield,
 lassoTune
 ```
 
+## Ridge Regression
+
 ```{r, echo=FALSE}
 # Ridge regression
 set.seed(100)
@@ -79,34 +85,112 @@ ridgeTune <- train(x = dfX, y = df$Yield,
 ridgeTune
 ```
 
+## Support Vector Machines (SVM)
+
 ```{r, echo=FALSE}
 # Support Vector Machines (SVM)
-
+set.seed(100)
+svmTune <- train(
+  x=dfX, y=df$Yield, 
+  method = "svmRadial",
+  preProc = c("center", "scale"),
+  tuneLength = 8,
+  epsilon = 0.01,
+  trControl = ctrl
+)
+svmTune
 ```
+
+## Neural Nets
 
 ```{r, echo=FALSE}
 # Neural Nets
-
+nnetGrid <- expand.grid(
+  decay = c(5.0, 20.0, 80.0),
+  size = c(1, 2, 3)
+)                        
+set.seed(100)
+nnetTune <- train(x=dfX, y=df$Yield,
+                   method = "nnet",
+                   tuneGrid = nnetGrid,
+                   trControl = ctrl,
+                   preProc = c("center", "scale"),
+                   linout = TRUE,
+                   trace = FALSE
+  )
+nnetTune
 ```
 
-```{r, echo=FALSE}
+## Multivariate Adaptive Regression Splines (MARS)
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
 # Multivariate Adaptive Regression Splines (MARS)
-
+marsGrid <- expand.grid(.degree = 1:2, .nprune = c(20, 30, 40, 50))
+set.seed(100)
+marsTune <- train(x=dfX, y=df$Yield,
+                   method = "earth",
+                   tuneGrid = marsGrid,
+                   trControl = ctrl
+)
+marsTune
 ```
+
+## K-nearest Neighbors (KNN)
 
 ```{r, echo=FALSE}
 # K-nearest Neighbors (KNN)
-
+set.seed(100)
+knnTune <- train(x = dfX,
+                y = df$Yield,
+                preProcess = c("center", "scale"),
+                method="knn", 
+                trControl=ctrl,
+                tuneLength=15
+            )
+knnTune
 ```
+
+## Regression tree
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# Regression tree
+set.seed(100)
+cartTune <- train(x = dfX, y = df$Yield,
+                  method = "rpart",
+                  tuneLength = 15,
+                  trControl = ctrl)
+cartTune
+```
+
+A bagged regression tree model was also fitted, resulting in a reduction in cross-validated
+RMSE.
 
 ```{r, echo=FALSE}
-# Regression tree
-
+#Bagged Regression tree
+set.seed(100)
+treebagTune <- train(x = dfX, y = df$Yield,
+                      method = "treebag",
+                      nbagg = 30,
+                      trControl = ctrl)
+treebagTune
 ```
+
+## Random forests
 
 ```{r, echo=FALSE}
 # Random forests
-
+mtryGrid <- data.frame(
+  mtry = floor(seq(10, ncol(dfX), 
+                      length = 10))
+)
+set.seed(100)
+rfTune <- train(x = dfX, y = df$Yield,
+                 method = "rf",
+                 tuneGrid = mtryGrid,
+                 ntree = 100,
+                 importance = TRUE,
+                 trControl = ctrl)
+rfTune
 ```
 
 ## Model comparison
