@@ -17,8 +17,10 @@ Chapter 1.4.
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
 library(tidyverse)
+library(caret)
 library(AppliedPredictiveModeling)
 data(ChemicalManufacturingProcess)
+df <- ChemicalManufacturingProcess
 ```
 
 ## Identify an outcome variable to be predicted
@@ -27,13 +29,16 @@ data(ChemicalManufacturingProcess)
     column is:
 
 ```{r,echo=FALSE}
-summary(ChemicalManufacturingProcess$Yield)
+summary(df$Yield)
 ```
 
 ## Preprocessing
 
 ```{r,echo=FALSE}
-
+dfX <- df %>% select(-Yield)
+dfX <- dfX %>% filter(!if_any(everything(), is.na))
+preProc <- preProcess(dfX, method = c("BoxCox", "center", "scale"))
+transformed_dfX <- predict(preProc, dfX)
 ```
 
 ## Model Fitting
