@@ -35,15 +35,77 @@ summary(df$Yield)
 ## Preprocessing
 
 ```{r,echo=FALSE}
+df <- df %>% filter(!if_any(everything(), is.na))
 dfX <- df %>% select(-Yield)
-dfX <- dfX %>% filter(!if_any(everything(), is.na))
-preProc <- preProcess(dfX, method = c("BoxCox", "center", "scale"))
-transformed_dfX <- predict(preProc, dfX)
 ```
 
 ## Model Fitting
 
 ```{r, echo=FALSE}
+ctrl <- trainControl(method = "cv", number = 10)
+# Linear regression
+lmTune <- train(Yield ~., df,
+                  method='lm',
+                  trControl=ctrl,
+                  preProc = c('center', 'scale'))
+lmTune
+```
+
+```{r, echo=FALSE}
+# Lasso
+set.seed(100)
+lassoGrid <- expand.grid(lambda = c(0), 
+                      fraction = seq(.01, 1, length = 20))
+lassoTune <- train(x = (dfX), y = df$Yield,
+                    method = "enet",
+                    tuneGrid = lassoGrid,
+                    trControl = ctrl,
+                    preProc = c("center", "scale")
+                  )
+
+lassoTune
+```
+
+```{r, echo=FALSE}
+# Ridge regression
+set.seed(100)
+ridgeGrid <- expand.grid(lambda = seq(0, .1, length = 20))
+ridgeTune <- train(x = dfX, y = df$Yield,
+                   method = "ridge",
+                   tuneGrid = ridgeGrid,
+                   trControl = ctrl,
+                   preProc = c("center", "scale")
+              )
+ridgeTune
+```
+
+```{r, echo=FALSE}
+# Support Vector Machines (SVM)
+
+```
+
+```{r, echo=FALSE}
+# Neural Nets
+
+```
+
+```{r, echo=FALSE}
+# Multivariate Adaptive Regression Splines (MARS)
+
+```
+
+```{r, echo=FALSE}
+# K-nearest Neighbors (KNN)
+
+```
+
+```{r, echo=FALSE}
+# Regression tree
+
+```
+
+```{r, echo=FALSE}
+# Random forests
 
 ```
 
