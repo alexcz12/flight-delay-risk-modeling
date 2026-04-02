@@ -32,6 +32,15 @@ df <- ChemicalManufacturingProcess
 summary(df$Yield)
 ```
 
+Below is a histogram of Yield 
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(df, aes(x=Yield)) + geom_histogram() +
+  labs(
+    x = "Product Yield of Chemical Manufacturing Process"
+    )
+```
+
 ## Preprocessing
 
 The ChemicalManufacturingProcess data frame was pre-processed by removing all rows with missing values. Further pre-processing was applied when each model was fitted.
