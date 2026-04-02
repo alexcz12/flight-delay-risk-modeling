@@ -1,5 +1,5 @@
 ---
-title: 'Homework 1: Exploratory Data Analysis'
+title: 'Homework 2: Regression'
 author: "Alex Czerkawski"
 output:
   pdf_document: default
@@ -204,7 +204,32 @@ rfTune
 
 ## Model comparison
 
+Below are the models listed in order of cross-validated RMSE from largest to smallest.
 
+- Linear Regression (2.77)
+- Neural Network (1.63)
+- Regression Tree (1.42)
+- KNN (1.28)
+- MARS (1.22)
+- Ridge Regression (1.21)
+- Lasso (1.17)
+- Bagged Regression Tree (1.15)
+- SVM (1.06)
+- Random Forest (1.00)
+
+Below are the models listed in order of complexity from least to most complex.
+
+- Linear Regression
+- Regression Tree
+- Ridge Regression
+- Lasso
+- KNN
+- Neural Network
+- MARS
+- SVM
+- Bagged Regression Tree
+- Random Forest
 
 ## Recommendation
 
+As seen above, Random Forest produced the best cross-validated RMSE, though it's also the most complex model. The RMSE standard deviation for the Random Forest model was 0.26. If all models within the mean RMSE + RMSESD meet the selection criteria, then I would choose the simplest model with a cross-validated RMSE below 1.26. Therefore I would select either the Ridge Regression or LASSO model, as they are much more interpretable with a similar level of performance as the more complex models.
