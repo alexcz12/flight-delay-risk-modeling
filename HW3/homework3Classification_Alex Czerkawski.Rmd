@@ -31,8 +31,23 @@ df <- df %>%
 unique(df$injury_binary)
 ```
 
-## 
+## Identify an outcome variable to be predicted
 
+-   **injury_binary** (categorical) = If the liver was damaged when exposed to each compound. A summary of this column is:
 
+```{r,echo=FALSE}
+summary(df$injury_binary)
+```
 
+Below is a histogram of injury_binary 
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(df, aes(x = injury_binary)) + geom_bar()
+```
+
+## Preprocessing
+
+Since there are no missing values in the data set, there is no pre-processed that needs to be done before fitting models. Within each train statement, appropriate pre-processing will be applied.
+
+## Linear Classification
 
