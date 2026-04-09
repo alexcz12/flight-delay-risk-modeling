@@ -1,0 +1,38 @@
+---
+title: 'Homework 3: Classification'
+author: "IE 2064 Data Science"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+## Dataset choice
+
+For this assignment, we will be using the Hepatic Injury dataset. This dataset was taken from Applied Predictive Models (APM) Chapter 1.4.
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+library(tidyverse)
+library(caret)
+library(AppliedPredictiveModeling)
+data(hepatic)
+df <- data.frame(bio, chem, injury)
+```
+
+## Simplify injury
+
+Below are the levels of injury after being simplified:
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+df <- df %>%
+  mutate(injury_binary = factor(ifelse(injury == "None", "no_injury", "injury")))
+unique(df$injury_binary)
+```
+
+## 
+
+
+
+
