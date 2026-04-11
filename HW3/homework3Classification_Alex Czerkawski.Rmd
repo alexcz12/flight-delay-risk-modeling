@@ -90,11 +90,11 @@ lda
 ```
 
 ```{r,echo=FALSE}
+roc_lda <- build_credit_roc(lda)
 ggroc(
   roc_lda
 )
 
-roc_lda <- build_credit_roc(lda)
 auc(roc_lda)
 ```
 
@@ -114,32 +114,60 @@ glmnTuned$results
 ```
 
 ```{r,echo=FALSE}
+roc_glmnTuned <- build_credit_roc(glmnTuned)
 ggroc(
   roc_glmnTuned
 )
 
-roc_glmnTuned <- build_credit_roc(glmnTuned)
 auc(roc_glmnTuned)
 ```
 
 ## Classification trees
 
 ```{r,echo=FALSE}
-
+cpGrid <- data.frame(
+  cp = c(0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.04)
+)
+cartTune <- train(injury_binary ~ .,
+               df,
+               method = "rpart",
+               tuneGrid = cpGrid,
+               trControl = ctrl)
+cartTune
 ```
 
 ```{r,echo=FALSE}
+roc_cartTune <- build_credit_roc(cartTune)
+ggroc(
+  roc_cartTune
+)
 
+auc(roc_cartTune)
 ```
 
 ## Random forests
 
 ```{r,echo=FALSE}
-
+mtryGrid <- data.frame(
+  mtry = c(3, 5, 7, 10, 12, 15)
+)
+rfTune <- train(injury_binary ~ .,
+               df,
+               method = "rf",
+               tuneGrid = mtryGrid,
+               ntree = 50,
+               importance = TRUE,
+               trControl = ctrl)
+rfTune
 ```
 
 ```{r,echo=FALSE}
+roc_rfTune <- build_credit_roc(rfTune)
+ggroc(
+  roc_rfTune
+)
 
+auc(roc_rfTune)
 ```
 
 ## Support Vector Machines (SVM)
