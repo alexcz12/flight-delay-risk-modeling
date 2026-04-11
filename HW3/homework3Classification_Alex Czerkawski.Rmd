@@ -49,7 +49,7 @@ ggplot(df, aes(x = injury_binary)) + geom_bar()
 
 Since there are no missing values in the data set, the only pre-processing that needed to be done was removing predictors with zero variance. Within each train statement, appropriate pre-processing will be applied.
 
-```{r,echo=FALSE}
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
 zero_var_cols <- nearZeroVar(df)
 df <- df[, -zero_var_cols]
 
@@ -63,8 +63,6 @@ build_credit_roc <- function(model) {
 
 ## Logistic Regression
 
-Simple logistic regression fails because there are too many predictors compared to observations.
-
 ```{r,echo=FALSE,warning=FALSE}
 ctrl <- trainControl(method = "cv", number = 10)
 
@@ -72,8 +70,18 @@ logisticReg <- train(injury_binary ~ .,
                      data = df,
                      method = "glm",
                      trControl = ctrl,
-                     preProcess = c("center", "scale"),)
-logisticReg$results
+                     family = "binomial",
+                     preProcess = c("center", "scale"))
+logisticReg
+```
+
+```{r,echo=FALSE}
+roc_logisticReg <- build_credit_roc(logisticReg)
+ggroc(
+  roc_logisticReg
+)
+
+auc(roc_logisticReg)
 ```
 
 ## Linear discriminant analysis
@@ -300,7 +308,32 @@ auc(roc_naiveBayes)
 
 ## Comparison
 
+Below are the models listed in order of accuracy from largest to smallest.
 
+- Logistic regression (1)
+- Penalized models (1)
+- SVM (1)
+- Classification trees (1)
+- Random Forest (1)
+- LDA (0.996)
+- Neural Networks (0.996)
+- QDA (0.943)
+- KNN (0.822)
+- Naive Bayes (0.774)
+
+Below are the models listed in order of area under ROC curves from largest to smallest.
+
+- Logistic regression (1)
+- Penalized models (1)
+- SVM (1)
+- Classification trees (1)
+- Random Forest (1)
+- LDA (1)
+- Neural Networks (1)
+- QDA (1)
+- Naive Bayes (0.991)
+- KNN (0.966)
 
 ## Recommendation
 
+As seen above, all the models resulted in similar levels of accuracy and area under the ROC curve. Therefore, I would choose logistic regression as it is the most interpretable with the same level of performance as the more complex models.
