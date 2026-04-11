@@ -18,7 +18,7 @@ library(tidyverse)
 library(caret)
 library(AppliedPredictiveModeling)
 data(hepatic)
-df <- data.frame(bio, chem, injury)
+df <- data.frame(bio, injury)
 ```
 
 ## Simplify injury
@@ -47,7 +47,153 @@ ggplot(df, aes(x = injury_binary)) + geom_bar()
 
 ## Preprocessing
 
-Since there are no missing values in the data set, there is no pre-processed that needs to be done before fitting models. Within each train statement, appropriate pre-processing will be applied.
+Since there are no missing values in the data set, the only pre-processing that needed to be done was removing predictors with zero variance. Within each train statement, appropriate pre-processing will be applied.
 
-## Linear Classification
+```{r,echo=FALSE}
+zero_var_cols <- nearZeroVar(df)
+df <- df[, -zero_var_cols]
 
+library(pROC)
+build_credit_roc <- function(model) {
+  probs <- predict(model, df,
+                   type = "prob")[, "injury"]
+  return(roc(relevel(df$injury_binary, "no_injury"), probs))
+}
+```
+
+## Logistic Regression
+
+Simple logistic regression fails because there are too many predictors compared to observations.
+
+```{r,echo=FALSE,warning=FALSE}
+ctrl <- trainControl(method = "cv", number = 10)
+
+logisticReg <- train(injury_binary ~ .,
+                     data = df,
+                     method = "glm",
+                     trControl = ctrl,
+                     preProcess = c("center", "scale"),)
+logisticReg$results
+```
+
+## Linear discriminant analysis
+
+```{r,echo=FALSE}
+lda <- train(
+  injury_binary ~ .,
+  data = df,
+  method = "lda",
+  trControl = ctrl,
+  preProcess = c("center", "scale", "pca")
+)
+lda
+```
+
+```{r,echo=FALSE}
+ggroc(
+  roc_lda
+)
+
+roc_lda <- build_credit_roc(lda)
+auc(roc_lda)
+```
+
+## Penalized models
+
+```{r,echo=FALSE}
+set.seed(100)
+glmnGrid <- expand.grid(lambda = seq(0.0, 0.02, length = 5), 
+                        alpha = seq(0.0, 1, length = 5))
+glmnTuned <- train(injury_binary ~ .,
+                 data = df,
+                 method = "glmnet",
+                 tuneGrid = glmnGrid,
+                 preProc = c("center", "scale"),
+                 trControl = ctrl)
+glmnTuned$results
+```
+
+```{r,echo=FALSE}
+ggroc(
+  roc_glmnTuned
+)
+
+roc_glmnTuned <- build_credit_roc(glmnTuned)
+auc(roc_glmnTuned)
+```
+
+## Classification trees
+
+```{r,echo=FALSE}
+
+```
+
+```{r,echo=FALSE}
+
+```
+
+## Random forests
+
+```{r,echo=FALSE}
+
+```
+
+```{r,echo=FALSE}
+
+```
+
+## Support Vector Machines (SVM)
+
+```{r,echo=FALSE}
+
+```
+
+```{r,echo=FALSE}
+
+```
+
+## Neural Nets
+
+```{r,echo=FALSE}
+
+```
+
+```{r,echo=FALSE}
+
+```
+
+## Non-linear discriminant analysis
+
+```{r,echo=FALSE}
+
+```
+
+```{r,echo=FALSE}
+
+```
+
+## K-nearest Neighbors (KNN)
+
+```{r,echo=FALSE}
+
+```
+
+```{r,echo=FALSE}
+
+```
+
+## Naive Bayes
+
+```{r,echo=FALSE}
+
+```
+
+```{r,echo=FALSE}
+
+```
+
+## Comparison
+
+
+
+## Recommendation
