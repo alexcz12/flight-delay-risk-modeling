@@ -1,0 +1,200 @@
+---
+title: 'Airline On-Time Performance'
+subtitle: "Preliminary Data Analysis"
+author: "Alex Czerkawski"
+output: beamer_presentation
+fontsize: 10pt
+---
+
+## CoNVO overview
+
+- Identifying flights at high risk of delay months in advance is a key challenge for United Airlines' network planning team
+- Understanding delay drivers will highlight underperforming routes and markets to inform better scheduling decisions
+- A model will be built using historical flight data to predict the probability and intensity of departure delays
+- Model outputs will give the network planning team an expectation of delays so candidate schedules can be adjusted to balance an aggressive schedule with operational efficiency
+
+## Dataset choice
+
+- Airline Service Quality Performance 234 dataset from Bureau of Transportation Statistics
+- This dataset reports every flight in a month, when it was scheduled to leave/arrive, and when it actually left/arrived
+- Data is reported by each airline
+- For the scope of this project, we'll take United Airlines data between October 2024 and September 2025
+
+<https://www.bts.gov/browse-statistical-products-and-data/bts-publications/airline-service-quality-performance-234-time>.
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+# This was used to save dataset to a csv
+#library(readxl)
+#p1 <- read_excel("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/Final Project Datasets.xlsx", sheet = "Oct-May")
+#p2 <- read_excel("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/Final Project Datasets.xlsx", sheet = "Jun-Sep")
+#combined <- rbind(p1, p2)
+#write.csv(combined, "C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv", row.names = FALSE)
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+# Use this block of code to import the csv
+library(tidyverse)
+df <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv")
+df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
+                    Report_Month = month(Report_Date),
+                    Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
+                    Scheduled.Arrival.Time = (Scheduled.Arrival.Time %/% 100) * 60 + (Scheduled.Arrival.Time %% 100),
+                    Actual.Departure.Time = (Actual.Departure.Time %/% 100) * 60 + (Actual.Departure.Time %% 100),
+                    Actual.Arrival.Time = (Actual.Arrival.Time %/% 100) * 60 + (Actual.Arrival.Time %% 100),
+                    Day.of.Week = factor(Day.of.Week, 
+                                          levels = 1:7, 
+                                          labels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")),
+                    cancelled = ifelse(Actual.Block.Time == 0, 1, 0)
+                    )
+cancelled <- df %>% filter(cancelled == 1)
+not_cancelled <- df %>% filter(cancelled == 0)
+```
+
+## Dataset info
+
+- Split out cancelled flights into a separate dataset
+- 1,434,047 rows, each corresponding to a departed flight
+- Relevant columns: Departure airport, Arrival airport, Day of week, Scheduled departure time, Scheduled arrival time, Scheduled block time, Report month, Departure delay, and Arrival delay
+
+## Pairs plot
+
+- Random sample of 1000 flights
+
+```{r, echo=FALSE}
+set.seed(2)
+pairs_df <- not_cancelled %>% select(Departure.Delay, Report_Month, Day.of.Week, Scheduled.Departure.Time, Scheduled.Block.Time) %>% filter(Departure.Delay < 250)
+pairs(pairs_df %>% slice_sample(n=1000))
+```
+
+## Histogram of departure delays
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(not_cancelled, aes(x = pmin(Departure.Delay, 250))) +
+  geom_histogram(bins = 50, color = "white") +
+  labs(x = "Departure Delay")
+```
+
+## Histograms of departure delays by month
+
+```{r, echo=FALSE}
+ggplot(not_cancelled, mapping = aes(x = pmin(Departure.Delay, 250))) +
+  geom_histogram(bins = 50, color = "white") +
+  facet_wrap(~ Report_Month) +
+  labs(x = "Departure Delay")
+```
+
+## Boxplot by day of week
+
+- Random sample of 10,000 flights
+- Filtered out flights that were delayed over 250 minutes
+
+```{r, echo=FALSE}
+set.seed(5)
+ggplot(not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=10000)
+       , aes(x=Day.of.Week, y=Departure.Delay)) + geom_boxplot() + 
+  labs(
+    x = "Day of Week",
+    y = "Departure Delay"
+    )
+```
+
+## Percentiles by day of week
+
+```{r, echo=FALSE}
+not_cancelled %>% filter(Departure.Delay < 250) %>% slice_sample(n=10000) %>% 
+  group_by(Day.of.Week) %>% 
+  summarise(p75 = quantile(Departure.Delay, 0.75),
+    p95 = quantile(Departure.Delay, 0.95))
+```
+
+## Scatterplot of departure delay vs scheduled departure time at PIT
+
+- Filtered out flights that were delayed over 100 minutes
+
+```{r, echo=FALSE}
+ggplot(not_cancelled %>% filter(Departure.Delay < 100, Dep == "PIT"), aes(x=Scheduled.Departure.Time / 60, y=Departure.Delay)) + geom_point(size=1) + 
+  labs(
+    x = "Scheduled Departure Time (Hours)",
+    y = "Departure Delay"
+    ) +
+  geom_hline(yintercept = 0, color = "red")
+```
+
+## Histogram of delays by scheduled departure time at PIT
+
+```{r, echo=FALSE}
+ggplot(not_cancelled %>% filter(Departure.Delay > 0, Dep == "PIT"), 
+       aes(x = Scheduled.Departure.Time / 60)) +
+  geom_histogram(binwidth = 1, color = "white") +
+  labs(
+    x = "Scheduled Departure Time (Hours)",
+    y = "Delay Count"
+  )
+```
+
+## Departure delays by month, day of week, and scheduled departure time at PIT
+
+```{r, echo=FALSE}
+set.seed(5)
+ggplot(not_cancelled %>% filter(Departure.Delay < 250, Dep == 'PIT') %>% slice_sample(n=5000), 
+       aes(x = Scheduled.Departure.Time, y = Departure.Delay)) + 
+  geom_point(size = 1) + 
+  facet_grid(Day.of.Week ~ Report_Month) +
+  labs(
+    x = "Scheduled Departure Time",
+    y = "Departure Delay",
+  ) + 
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank())
+
+```
+
+## Causal relationships
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+# Used claude to make this plot look nice. I came up with all the relationships myself
+library(ggdag)
+
+dag <- dagify(
+  Time_Banks ~ Time_of_Day,
+  Congestion_on_Tarmac ~ Time_Banks,
+  Long_Taxi_In ~ Congestion_on_Tarmac,
+  Late_Aircraft ~ Long_Taxi_In,
+  Departure_Delay ~ Late_Aircraft,
+  Morning_Delays ~ Time_of_Day,
+  Aircraft_Delayed_all_day ~ Morning_Delays,
+  Departure_Delay ~ Aircraft_Delayed_all_day,
+  Busy_Travel_Days ~ Day_of_Week,
+  Days_with_more_flights ~ Busy_Travel_Days,
+  Aircrafts_breaking ~ Days_with_more_flights,
+  More_aggressive_schedule ~ Days_with_more_flights,
+  Busy_Travel_Months ~ Month,
+  Months_with_more_flights ~ Busy_Travel_Months,
+  Aircrafts_breaking ~ Months_with_more_flights,
+  More_aggressive_schedule ~ Months_with_more_flights,
+  Departure_Delay ~ Aircrafts_breaking,
+  Less_buffer ~ More_aggressive_schedule,
+  Departure_Delay ~ Less_buffer,
+  coords = list(
+    x = c(
+      Time_of_Day = 0, Time_Banks = 1, Congestion_on_Tarmac = 2, Long_Taxi_In = 3, Late_Aircraft = 4,
+      Morning_Delays = 1, Aircraft_Delayed_all_day = 2,
+      Day_of_Week = 0, Busy_Travel_Days = 1, Days_with_more_flights = 2, 
+      Aircrafts_breaking = 3, More_aggressive_schedule = 3, Less_buffer = 4,
+      Month = 0, Busy_Travel_Months = 1, Months_with_more_flights = 2,
+      Departure_Delay = 5
+    ),
+    y = c(
+      Time_of_Day = 4, Time_Banks = 4, Congestion_on_Tarmac = 4, Long_Taxi_In = 4, Late_Aircraft = 4,
+      Morning_Delays = 3, Aircraft_Delayed_all_day = 3,
+      Day_of_Week = 2, Busy_Travel_Days = 2, Days_with_more_flights = 2,
+      Aircrafts_breaking = 2, More_aggressive_schedule = 1, Less_buffer = 1,
+      Month = 0, Busy_Travel_Months = 0, Months_with_more_flights = 0,
+      Departure_Delay = 2
+    )
+  )
+)
+
+ggdag_classic(dag, size = 2) + 
+  theme_dag()
+```
