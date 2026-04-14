@@ -36,102 +36,160 @@ not_cancelled <- df %>% filter(cancelled == 0)
 
 United Airlines operates thousands of flights every day across a large and complex network, and identifying flights at high risk of delay months in advance is a key challenge for the network planning team. Having better visibility into which flights are likely to be delayed is an important step toward building more reliable and operationally efficient schedules.
 
-Understanding what drives flight delays will improve foresight into where and when delays are most likely to occur. This will help highlight routes and markets that are consistently delayed, giving planning teams a clearer picture of where the network is underperforming. With this information, better long-term scheduling decisions can be made that improve on-time performance and reduce delays have across the network.
+Understanding what drives flight delays will improve foresight into where and when delays are most likely to occur. Certain routes, markets, and time slots are consistently more prone to delays than others. This will help highlight routes and markets that are consistently delayed, giving planning teams a clearer picture of where the network is underperforming. With this information, better long-term scheduling decisions can be made that improve on-time performance and reduce delays across the network.
 
-Using historical flight data, we will build a model that predicts both the probability and intensity of departure delays for flights across the network. By identifying the key factors that contribute to delays, the model will give network planning teams the information they need to adjust routes and time slots where schedule changes could improve reliability and operational performance.
+Using historical flight data, we will build a model that predicts the probability of departure delays for flights across the network. The dataset includes flight-level information on scheduled times, routes, and day of week, providing a strong foundation for identifying where delays are most likely to occur. By identifying the key factors that contribute to delays, the model will give network planning teams the information they need to adjust routes and time slots where schedule changes could improve reliability and operational performance. Flight-level predictions will allow planners to move beyond aggregate on-time statistics and evaluate specific flights and markets that may benefit from schedule adjustments. The model will give planners a way to simulate the impact of schedule changes before they are made, helping the team make more informed decisions.
 
-Preliminary results will be presented to a VP in Network Planning. If successful, the model will be run across all flights in the network on an ongoing basis, giving planning teams regular insights into where delays are expected and where schedules may need to be adjusted. The long term goal is to make this model a regular part of the network planning process to help the team build better schedules and reduce delays across the network.
+Preliminary results for departures out of ORD (Chicago O'Hare International Airport) will be presented to a VP in Network Planning. ORD is a United hub while being one of the busiest and most delay-prone airports in the country, making it a natural starting point for this analysis.  If successful, the model will be run across all flights in the network on an ongoing basis, giving planning teams regular insights into where delays are expected and where schedules may need to be adjusted. The long term goal is to make this model a regular part of the network planning process to help the team build better schedules and reduce delays across the network.
 
 ## Data Visualization
 
 ```{r,echo=FALSE,warning=FALSE}
+not_cancelled <- not_cancelled %>% filter(Dep == "ORD")
+
 
 ```
 
 ## Model Fitting
 
 ```{r,echo=FALSE, warning=FALSE}
-not_cancelledX <- not_cancelled %>% filter(Dep == "ORD") %>% select(-Marketing.Airline, -Marketing.flt.num, -Operating.Airline, -Operating.flt.num, -Report_Date, -Actual.Departure.Time, -Actual.Arrival.Time, -Actual.Block.Time, -Departure.Delay, -Arrival.Delay, -Delay.Diff, -Wheels.Up, -Wheels.Down, -cancelled, -Tail.Num, -Dep, -is_delayed, -Arr) #%>% mutate(Arr = as.factor(Arr))
+not_cancelledX <- not_cancelled %>% select(-Marketing.Airline, -Marketing.flt.num, -Operating.Airline, -Operating.flt.num, -Report_Date, -Actual.Departure.Time, -Actual.Arrival.Time, -Actual.Block.Time, -Departure.Delay, -Arrival.Delay, -Delay.Diff, -Wheels.Up, -Wheels.Down, -cancelled, -Tail.Num, -Dep, -is_delayed, -Arr) #%>% mutate(Arr = as.factor(Arr))
 
 dummies <- dummyVars(~ ., data = not_cancelledX)
 not_cancelledX <- predict(dummies, newdata = not_cancelledX) %>% as.data.frame()
 
-not_cancelledY <- not_cancelled %>% filter(Dep == "ORD")
-
-prop.table(table(not_cancelledY$is_delayed))
+prop.table(table(not_cancelled$is_delayed))
 ```
 
 ### Logistic Regression
 
 ```{r,echo=FALSE, warning=FALSE}
 # Below is the code that was used to fit the logistic regression model
-
-ctrl <- trainControl(method = "cv", number = 4, classProbs=TRUE, summaryFunction = twoClassSummary)
-
-set.seed(100)
-logisticReg <- train(x = not_cancelledX, y = not_cancelledY$is_delayed,
-                 method = "glm",
-                 preProc = c("center", "scale"),
-                 trControl = ctrl,
-                 metric = "ROC")
-
-saveRDS(logisticReg, "LogisticRegression.rds")
+# 
+# ctrl <- trainControl(method = "cv", number = 4, classProbs=TRUE, summaryFunction = twoClassSummary)
+# 
+# set.seed(100)
+# logisticReg <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
+#                  method = "glm",
+#                  preProc = c("center", "scale"),
+#                  trControl = ctrl,
+#                  metric = "ROC")
+# 
+# saveRDS(logisticReg, "LogisticRegression.rds")
 logisticReg <- readRDS("LogisticRegression.rds")
 logisticReg
 ```
 
-### Random forests
+### Random forest
 
 ```{r,echo=FALSE}
-set.seed(100)
-mtryGrid <- data.frame(
-  mtry = c(1, 2, 3, 4)
-)
-rfTune <- train(x = not_cancelledX, y = not_cancelledY$is_delayed,
-               method = "rf",
-               tuneGrid = mtryGrid,
-               ntree = 10,
-               importance = TRUE,
-               trControl = ctrl,
-               metric = "ROC")
+# Below is the code that was used to fit the random forest model
+# 
+# set.seed(100)
+# mtryGrid <- data.frame(
+#   mtry = c(1, 2, 3)
+# )
+# rfTune <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
+#                method = "rf",
+#                tuneGrid = mtryGrid,
+#                ntree = 200,
+#                importance = TRUE,
+#                trControl = ctrl,
+#                metric = "ROC")
+# 
+# saveRDS(rfTune, "RandomForest.rds")
+rfTune <- readRDS("RandomForest.rds")
 rfTune
-```
-
-```{r,echo=FALSE}
-
 ```
 
 ### Boosting
 
 ```{r,echo=FALSE}
-set.seed(100)
-gbmFit1 <- train(x = not_cancelledX, y = not_cancelledY$is_delayed,
-                 method = "gbm", 
-                 trControl = ctrl,
-                 ## This last option is actually one
-                 ## for gbm() that passes through
-                 verbose = FALSE,
-                 metric = "ROC")
+# Below is the code that was used to fit the boosting model
+# 
+# set.seed(100)
+# gbmFit1 <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
+#                  method = "gbm", 
+#                  trControl = ctrl,
+#                  ## This last option is actually one
+#                  ## for gbm() that passes through
+#                  verbose = FALSE,
+#                  metric = "ROC")
+# 
+# saveRDS(gbmFit1, "Boosting.rds")
+gbmFit1 <- readRDS("Boosting.rds")
 gbmFit1
 ```
 
 ## Model comparison
 
-```{r, message=FALSE,warning=FALSE, fig.height=4.5}
+```{r, echo=FALSE, message=FALSE,warning=FALSE, fig.height=4.5}
 library(pROC)
 build_credit_roc <- function(model) {
   probs <- predict(model, not_cancelledX,
                    type = "prob")[, "delayed"]
-  return(roc(relevel(not_cancelledY$is_delayed, "not_delayed"), probs))
+  return(roc(relevel(not_cancelled$is_delayed, "not_delayed"), probs))
 }
 ggroc(list(`Logistic regression` = build_credit_roc(logisticReg),
         `Random Forest` = build_credit_roc(rfTune),   
         `Boosting` = build_credit_roc(gbmFit1)))
 ```
 
-## Model comparison
+```{r, echo=FALSE, message=FALSE,warning=FALSE}
+# Used claude to create this table
+library(knitr)
+library(kableExtra)
 
+best_gbm <- gbmFit1$results[which.max(gbmFit1$results$ROC), ]
+best_rf  <- rfTune$results[which.max(rfTune$results$ROC), ]
 
+# Create your data
+results <- data.frame(
+  Model = c("Logistic Regression", "Random Forest", "Boosting"),
+  CV_ROC = c(logisticReg$results$ROC, best_rf$ROC, best_gbm$ROC),
+  AUC = c(auc(build_credit_roc(logisticReg)), auc(build_credit_roc(rfTune)), auc(build_credit_roc(gbmFit1))),
+  Sensitivity = c(logisticReg$results$Sens, best_rf$Sens, best_gbm$Sens),
+  Specificity = c(logisticReg$results$Spec, best_rf$Spec, best_gbm$Spec)
+)
+
+# Basic nice table
+kable(results, 
+      caption = "Model Comparison",
+      digits = 3,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+not_cancelled$lr <- predict(logisticReg, not_cancelledX, type = "prob")[,1]
+not_cancelled$rf <- predict(rfTune, not_cancelledX, type = "prob")[,1]
+not_cancelled$boost <- predict(gbmFit1, not_cancelledX, type = "prob")[,1]
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+calData1 <- calibration(is_delayed ~ lr + rf + boost, data = not_cancelled, 
+                        cuts = 10)
+calibration_curve <- ggplot(calData1$data) + 
+  geom_point(aes(midpoint, Percent, color=calibModelVar)) +
+  geom_line(aes(midpoint, Percent, color=calibModelVar)) +
+  geom_abline() +
+  labs(
+  title = "Calibration plot",
+  x = "Predicted probability",
+  y = "Observed event probability",
+  color = "classifier"
+  )
+calibration_curve
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+kable(calData1$data, 
+      caption = "Model Comparison",
+      digits = 3,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
+```
 
 ## Plan of work
 
+Going forward, I am planning on 
