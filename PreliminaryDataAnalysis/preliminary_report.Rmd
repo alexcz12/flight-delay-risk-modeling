@@ -46,14 +46,49 @@ Preliminary results for departures out of ORD (Chicago O'Hare International Airp
 
 ```{r,echo=FALSE,warning=FALSE}
 not_cancelled <- not_cancelled %>% filter(Dep == "ORD")
-
-
 ```
+
+```{r,echo=FALSE,warning=FALSE}
+set.seed(100)
+ggplot(not_cancelled %>% slice_sample(n=800), aes(x=Scheduled.Departure.Time / 60, y=Report_Month, color = is_delayed)) + geom_point(size=1) + 
+  labs(
+    x = "Scheduled Departure Time (Hours)",
+    y = "Month"
+    )
+```
+
+The plot above shows how delayed flights are dispersed throughout the day in different months at ORD. There tend to be more delayed flights in the afternoon compared to the morning during all seasons, and there are certain seasons that have more delays than others.
+
+```{r,echo=FALSE,warning=FALSE}
+set.seed(10)
+ggplot(not_cancelled %>% filter(is_delayed == 'delayed') %>% slice_sample(n=800), aes(x=Scheduled.Departure.Time / 60)) + 
+  geom_histogram(bins = 50, color = "white") +
+  labs(
+    x = "Scheduled Departure Time (Hours)",
+    y = "Delay Count"
+    )
+```
+
+The histogram above shows counts of delays through the day at ORD. Similar to the last plot, this graph shows more delays later in the day as well as the bank structure (peak times which increase the amount of connections United is able to offer) of the United schedule at ORD.
+
+```{r,echo=FALSE,warning=FALSE}
+set.seed(100)
+ggplot(not_cancelled, aes(x = Day.of.Week, fill = is_delayed)) +
+  geom_bar(position = "fill") +
+  labs(
+    x = "Day of the Week",
+    y = "Delay Percentage"
+  )
+```
+
+The plot above shows how the percentage of flights delayed changes by the day of the week. At ORD, Tuesday has the highest percentage of on-time flights followed by Wednesday, Monday, Saturday, Thursday, Friday, and Sunday.
 
 ## Model Fitting
 
+Below is the proportion of each level of the outcome. Models will be fit with a departure airport of ORD.
+
 ```{r,echo=FALSE, warning=FALSE}
-not_cancelledX <- not_cancelled %>% select(-Marketing.Airline, -Marketing.flt.num, -Operating.Airline, -Operating.flt.num, -Report_Date, -Actual.Departure.Time, -Actual.Arrival.Time, -Actual.Block.Time, -Departure.Delay, -Arrival.Delay, -Delay.Diff, -Wheels.Up, -Wheels.Down, -cancelled, -Tail.Num, -Dep, -is_delayed, -Arr) #%>% mutate(Arr = as.factor(Arr))
+not_cancelledX <- not_cancelled %>% select(-Marketing.Airline, -Marketing.flt.num, -Operating.Airline, -Operating.flt.num, -Report_Date, -Actual.Departure.Time, -Actual.Arrival.Time, -Actual.Block.Time, -Departure.Delay, -Arrival.Delay, -Delay.Diff, -Wheels.Up, -Wheels.Down, -cancelled, -Tail.Num, -Dep, -is_delayed, -Arr)
 
 dummies <- dummyVars(~ ., data = not_cancelledX)
 not_cancelledX <- predict(dummies, newdata = not_cancelledX) %>% as.data.frame()
@@ -77,7 +112,7 @@ prop.table(table(not_cancelled$is_delayed))
 # 
 # saveRDS(logisticReg, "LogisticRegression.rds")
 logisticReg <- readRDS("LogisticRegression.rds")
-logisticReg
+logisticReg$results
 ```
 
 ### Random forest
@@ -99,7 +134,8 @@ logisticReg
 # 
 # saveRDS(rfTune, "RandomForest.rds")
 rfTune <- readRDS("RandomForest.rds")
-rfTune
+best_rf <- rfTune$results[which.max(rfTune$results$ROC), ]
+best_rf
 ```
 
 ### Boosting
@@ -118,7 +154,8 @@ rfTune
 # 
 # saveRDS(gbmFit1, "Boosting.rds")
 gbmFit1 <- readRDS("Boosting.rds")
-gbmFit1
+best_gbm <- gbmFit1$results[which.max(gbmFit1$results$ROC), ]
+best_gbm
 ```
 
 ## Model comparison
@@ -140,9 +177,6 @@ ggroc(list(`Logistic regression` = build_credit_roc(logisticReg),
 library(knitr)
 library(kableExtra)
 
-best_gbm <- gbmFit1$results[which.max(gbmFit1$results$ROC), ]
-best_rf  <- rfTune$results[which.max(rfTune$results$ROC), ]
-
 # Create your data
 results <- data.frame(
   Model = c("Logistic Regression", "Random Forest", "Boosting"),
@@ -159,6 +193,8 @@ kable(results,
       booktabs = TRUE) %>%
   kable_styling(latex_options = c("striped", "hold_position"))
 ```
+
+As seen in the ROC curve above, the Random Forest model has the best AUC followed by the Boosting model and then the Logistic Regression model. When looking at the cross-validated AUC (notated as CV_ROC in the table), it is clear that the Random Forest model is over fit as it performed better on the training data than the CV test data. These models result in a similar level of AUC with all three models have an AUC that indicates improvement over selecting the most common outcome.
 
 ```{r, echo=FALSE,message=FALSE,warning=FALSE}
 not_cancelled$lr <- predict(logisticReg, not_cancelledX, type = "prob")[,1]
@@ -183,13 +219,41 @@ calibration_curve
 ```
 
 ```{r, echo=FALSE,message=FALSE,warning=FALSE}
-kable(calData1$data, 
-      caption = "Model Comparison",
-      digits = 3,
+# Used claude to create this table
+cal_wide <- calData1$data %>%
+  select(calibModelVar, midpoint, Percent, Count) %>%
+  pivot_wider(
+    names_from = calibModelVar,
+    values_from = c(Percent, Count)
+  ) %>%
+  arrange(midpoint) %>%
+  select(midpoint, 
+         Percent_lr, Count_lr,
+         Percent_rf, Count_rf,
+         Percent_boost, Count_boost) %>%
+  rename(
+    Bin             = midpoint,
+    `LR Avg Percent`    = Percent_lr,
+    `LR Count`      = Count_lr,
+    `RF Avg Percent`    = Percent_rf,
+    `RF Count`      = Count_rf,
+    `Boost Avg Percent` = Percent_boost,
+    `Boost Count`   = Count_boost
+  )
+
+kable(cal_wide,
+      caption = "Calibration Summary by Model",
+      digits  = 3,
       booktabs = TRUE) %>%
-  kable_styling(latex_options = c("striped", "hold_position"))
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  add_header_above(c(" " = 1,
+                     "Logistic Regression" = 2,
+                     "Random Forest" = 2,
+                     "Boosting" = 2))
 ```
+
+As seen in the calibration plot and table above, the Logistic Regression and Boosting models are calibrated well. The deviation from the line in the plot by the Boosting model is caused by 0 predictions made in either of the [0:0.1] or [0.9:1] bins. A similar pattern is seen with the Logistic Regression model, though the entire distribution is biased more towards the more common outcome (no delay). When looking at the Random Forest calibration plot and table, the model over predicts low likelihood outcomes and under predicts high likelihood outcomes, indicating it is very biased towards the no delay outcome.
 
 ## Plan of work
 
-Going forward, I am planning on 
+Going forward, I want to incorporate more predictors into the model. I plan to create rolling statistics such as scheduled flights in the last 30 minutes for both United and all airlines at ORD. I will also include the arrival airport as a predictor as it was excluded in these models. Ideally, these new predictors will improve the quality of the model predictions and result in better decisions on a flight level. I also want to compare how models will perform when they are fit on non-hub departures such as flights leaving PIT.
