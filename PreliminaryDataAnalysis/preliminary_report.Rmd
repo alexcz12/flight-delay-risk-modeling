@@ -48,7 +48,7 @@ Preliminary results for departures out of ORD (Chicago O'Hare International Airp
 not_cancelled <- not_cancelled %>% filter(Dep == "ORD")
 ```
 
-```{r,echo=FALSE,warning=FALSE}
+```{r,echo=FALSE,warning=FALSE,fig.height=3.5}
 set.seed(100)
 ggplot(not_cancelled %>% slice_sample(n=800), aes(x=Scheduled.Departure.Time / 60, y=Report_Month, color = is_delayed)) + geom_point(size=1) + 
   labs(
@@ -59,7 +59,7 @@ ggplot(not_cancelled %>% slice_sample(n=800), aes(x=Scheduled.Departure.Time / 6
 
 The plot above shows how delayed flights are dispersed throughout the day in different months at ORD. There tend to be more delayed flights in the afternoon compared to the morning during all seasons, and there are certain seasons that have more delays than others.
 
-```{r,echo=FALSE,warning=FALSE}
+```{r,echo=FALSE,warning=FALSE,fig.height=3.5}
 set.seed(10)
 ggplot(not_cancelled %>% filter(is_delayed == 'delayed') %>% slice_sample(n=800), aes(x=Scheduled.Departure.Time / 60)) + 
   geom_histogram(bins = 50, color = "white") +
@@ -71,7 +71,7 @@ ggplot(not_cancelled %>% filter(is_delayed == 'delayed') %>% slice_sample(n=800)
 
 The histogram above shows counts of delays through the day at ORD. Similar to the last plot, this graph shows more delays later in the day as well as the bank structure (peak times which increase the amount of connections United is able to offer) of the United schedule at ORD.
 
-```{r,echo=FALSE,warning=FALSE}
+```{r,echo=FALSE,warning=FALSE,fig.height=3.5}
 set.seed(100)
 ggplot(not_cancelled, aes(x = Day.of.Week, fill = is_delayed)) +
   geom_bar(position = "fill") +
