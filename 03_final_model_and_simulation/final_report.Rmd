@@ -9,7 +9,7 @@ editor_options:
     wrap: 72
 ---
 
-The attached report presents a flight delay prediction model built using a full year of United Airlines operational data (October 2024 – September 2025). The project focuses on departures out of ORD and PIT, comparing three modeling approaches (multinomial logistic regression, random forest, and gradient boosting) and evaluating each on probability calibration. The gradient boosting model was selected for its well-calibrated delay probabilities, which enable planners to simulate the impact of schedule changes on specific underperforming flights before they are made. This work was completed as part of my coursework at the University of Pittsburgh and reflects my interest in applying data science to improve operational reliability at United.
+The attached report presents a flight delay prediction model built using a full year of United Airlines operational data (October 2024 – September 2025). The project focuses on departures out of ORD and PIT, comparing three modeling approaches (multinomial logistic regression, random forest, and gradient boosting) and evaluating each on probability calibration. The gradient boosting model was selected for its well-calibrated delay probabilities, which enable planners to simulate the impact of schedule changes on specific underperforming flights before they are made. This work was completed as part of my coursework at the University of Pittsburgh and reflects my interest in using data science to improve decision-making in complex operational systems.
 
 ## Introduction
 
