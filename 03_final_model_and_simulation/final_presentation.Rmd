@@ -1,0 +1,428 @@
+---
+title: 'Airline On-Time Performance'
+subtitle: "Final Data Analysis"
+author: "Alex Czerkawski"
+output: beamer_presentation
+fontsize: 10pt
+---
+
+## Review of scope
+
+- Identifying flights at high risk of delay months in advance is a key challenge for United Airlines' network planning team
+- Models will be built using historical flight data to predict the probability of departure delays at ORD (Chicago O'Hare International Airport) and PIT (Pittsburgh International Airport)
+- Ideally, these models will allow planners to estimate operational impact to make better decisions
+- For the scope of this project, we'll take United Airlines data between October 2024 and September 2025
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+# Use this block of code to import the csv
+library(tidyverse)
+library(caret)
+library(lattice)
+library(pls)
+library(kableExtra)
+ord <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/ord.csv")
+
+pit <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/pit.csv")
+
+ord$Day.of.Week <- factor(ord$Day.of.Week, 
+                           levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+ord$is_delayed  <- factor(ord$is_delayed, 
+                           levels = c("not_delayed", "short_delay", "long_delay"))
+
+pit$Day.of.Week <- factor(pit$Day.of.Week, 
+                           levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+pit$is_delayed  <- factor(pit$is_delayed, 
+                           levels = c("not_delayed", "short_delay", "long_delay"))
+
+ordX <- ord %>% select(-is_delayed, -Dep, -Report_Date, -window_start, -window_end)
+pitX <- pit %>% select(-is_delayed, -Dep, -Report_Date, -window_start, -window_end)
+
+ord_dummies <- dummyVars(~ ., data = ordX)
+ordX <- predict(ord_dummies, newdata = ordX) %>% as.data.frame()
+
+pit_dummies <- dummyVars(~ ., data = pitX)
+pitX <- predict(pit_dummies, newdata = pitX) %>% as.data.frame()
+```
+
+## Bank Background
+
+- "Banks" are a schedule structure tool that allow airlines to provide better connectivity across a network
+- Between the red lines is an example of an arrival bank (few departures)
+- Between the blue lines is an example of a departure bank (many departures)
+- These alternate throughout the day at hub airports
+
+## Bank Structure at ORD
+
+```{r,echo=FALSE, warning=FALSE}
+set.seed(100)
+ggplot(ord %>% slice_sample(n=800), aes(x=Scheduled.Departure.Time / 60, y=Report_Month, color = is_delayed)) + geom_point(size=1) + 
+  labs(
+    x = "Scheduled Departure Time (Hours)",
+    y = "Month"
+    ) +
+  geom_vline(xintercept = c(17.5, 19), 
+             color      = "blue", 
+             linetype   = "dashed",
+             linewidth  = 0.5) +
+  geom_vline(xintercept = c(11.5, 12.5), 
+             color      = "red", 
+             linetype   = "dashed",
+             linewidth  = 0.5) +
+  scale_color_manual(values = c(
+    "not_delayed" = "darkgreen",
+    "short_delay" = "yellow",
+    "long_delay"  = "red"
+  ))
+```
+
+## Lack of Bank Structure at PIT
+
+```{r,echo=FALSE, warning=FALSE}
+ggplot(pit, aes(x=Scheduled.Departure.Time / 60, y=Report_Month, color = is_delayed)) + geom_point(size=1) + 
+  labs(
+    x = "Scheduled Departure Time (Hours)",
+    y = "Month"
+    ) +
+  scale_color_manual(values = c(
+    "not_delayed" = "darkgreen",
+    "short_delay" = "yellow",
+    "long_delay"  = "red"
+  ))
+```
+
+## Delay rate by Day of Week at ORD
+
+```{r,echo=FALSE,warning=FALSE}
+ggplot(ord, aes(x = Day.of.Week, fill = factor(is_delayed, levels = c("long_delay", "short_delay", "not_delayed")))) +
+  geom_bar(position = "fill") +
+  labs(
+    x = "Day of the Week",
+    y = "Delay Rate",
+    fill = "is_delayed"
+  ) +
+  scale_fill_manual(values = c(
+    "not_delayed" = "darkgreen",
+    "short_delay" = "yellow",
+    "long_delay"  = "red"
+  ))
+```
+
+## Delay rate by Day of Week at PIT
+
+```{r,echo=FALSE,warning=FALSE}
+ggplot(pit, aes(x = Day.of.Week, fill = factor(is_delayed, levels = c("long_delay", "short_delay", "not_delayed")))) +
+  geom_bar(position = "fill") +
+  labs(
+    x = "Day of the Week",
+    y = "Delay Rate",
+    fill = "is_delayed"
+  ) +
+  scale_fill_manual(values = c(
+    "not_delayed" = "darkgreen",
+    "short_delay" = "yellow",
+    "long_delay"  = "red"
+  ))
+```
+
+## Model Fitting
+
+- ORD Breakdown: On-Time = 60.8%, Short Delay = 24.9%, Long Delay = 14.3%
+- PIT Breakdown: On-Time = 78.2%, Short Delay = 13.3%, Long Delay = 8.5%
+- Predictors include Scheduled Departure Time, Scheduled Arrival Time, Scheduled Block Time, Day of the Week, Month, and Scheduled flights in 30 minutes before scheduled departure time (NEW)
+- Three models will be fit for ORD and PIT: Logistic Regression, Random Forest, and Boosting
+- Models will be evaluated on calibration and bias
+
+```{r,echo=FALSE, warning=FALSE}
+PIT_logisticReg <- readRDS("PITLogisticRegression.rds")
+ORD_logisticReg <- readRDS("ORDLogisticRegression.rds")
+PIT_rfTune <- readRDS("PITRandomForest.rds")
+ORD_rfTune <- readRDS("ORDRandomForest.rds")
+PIT_gbmFit1 <- readRDS("PITBoosting.rds")
+ORD_gbmFit1 <- readRDS("ORDBoosting.rds")
+```
+
+## Model Calibration
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+# ORD predictions
+ord_lr_prob <- predict(ORD_logisticReg, ordX, type = "prob")
+ord_rf_prob <- predict(ORD_rfTune, ordX, type = "prob")
+ord_boost_prob <- predict(ORD_gbmFit1, ordX, type = "prob")
+
+ord$lr_short <- ord_lr_prob[,"short_delay"]
+ord$lr_long <- ord_lr_prob[,"long_delay"]
+ord$rf_short <- ord_rf_prob[,"short_delay"]
+ord$rf_long <- ord_rf_prob[,"long_delay"]
+ord$boost_short <- ord_boost_prob[,"short_delay"]
+ord$boost_long <- ord_boost_prob[,"long_delay"]
+
+# PIT predictions
+pit_lr_prob <- predict(PIT_logisticReg, pitX, type = "prob")
+pit_rf_prob <- predict(PIT_rfTune, pitX, type = "prob")
+pit_boost_prob <- predict(PIT_gbmFit1, pitX, type = "prob")
+
+pit$lr_short <- pit_lr_prob[,"short_delay"]
+pit$lr_long <- pit_lr_prob[,"long_delay"]
+pit$rf_short <- pit_rf_prob[,"short_delay"]
+pit$rf_long <- pit_rf_prob[,"long_delay"]
+pit$boost_short <- pit_boost_prob[,"short_delay"]
+pit$boost_long <- pit_boost_prob[,"long_delay"]
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+# Used claude to create this though it was based on a simpler calibration plot that I made
+
+# Create binary factors for each class
+ord$is_short_delay <- factor(ifelse(ord$is_delayed == "short_delay", "short_delay", "other"),
+                              levels = c("short_delay", "other"))
+
+ord$is_long_delay  <- factor(ifelse(ord$is_delayed == "long_delay", "long_delay", "other"),
+                              levels = c("long_delay", "other"))
+
+pit$is_short_delay <- factor(ifelse(pit$is_delayed == "short_delay", "short_delay", "other"),
+                              levels = c("short_delay", "other"))
+
+pit$is_long_delay  <- factor(ifelse(pit$is_delayed == "long_delay", "long_delay", "other"),
+                              levels = c("long_delay", "other"))
+
+# ORD - short delay
+calData_ord_short <- calibration(is_short_delay ~ lr_short + rf_short + boost_short, 
+                                  data = ord, cuts = 10)
+cal_ord_short <- ggplot(calData_ord_short$data) +
+  geom_point(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_line(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_abline() +
+  labs(title = "ORD - Short Delay Calibration",
+       x = "Predicted probability", y = "Observed event probability", color = "Classifier")
+
+# ORD - long delay
+calData_ord_long <- calibration(is_long_delay ~ lr_long + rf_long + boost_long, 
+                                 data = ord, cuts = 10)
+cal_ord_long <- ggplot(calData_ord_long$data) +
+  geom_point(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_line(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_abline() +
+  labs(title = "ORD - Long Delay Calibration",
+       x = "Predicted probability", y = "Observed event probability", color = "Classifier")
+
+# PIT - short delay
+calData_pit_short <- calibration(is_short_delay ~ lr_short + rf_short + boost_short, 
+                                  data = pit, cuts = 10)
+cal_pit_short <- ggplot(calData_pit_short$data) +
+  geom_point(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_line(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_abline() +
+  labs(title = "PIT - Short Delay Calibration",
+       x = "Predicted probability", y = "Observed event probability", color = "Classifier")
+
+# PIT - long delay
+calData_pit_long <- calibration(is_long_delay ~ lr_long + rf_long + boost_long, 
+                                 data = pit, cuts = 10)
+cal_pit_long <- ggplot(calData_pit_long$data) +
+  geom_point(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_line(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_abline() +
+  labs(title = "PIT - Long Delay Calibration",
+       x = "Predicted probability", y = "Observed event probability", color = "Classifier")
+
+# Display all 4 together
+library(gridExtra)
+grid.arrange(cal_ord_short, cal_ord_long, cal_pit_short, cal_pit_long, ncol = 2)
+```
+
+## Model Calibration Continued
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+# Used claude to create these tables
+library(kableExtra)
+
+make_cal_table <- function(calData, caption) {
+  calData$data %>%
+    select(calibModelVar, bin, Percent, Count) %>%
+    pivot_wider(
+      names_from  = calibModelVar,
+      values_from = c(Percent, Count)
+    ) %>%
+    arrange(bin) %>%
+    select(bin,
+           Percent_lr_short, Count_lr_short,
+           Percent_rf_short, Count_rf_short,
+           Percent_boost_short, Count_boost_short) %>%
+    rename(
+      Bin                 = bin,
+      `Pct`    = Percent_lr_short,
+      `N`          = Count_lr_short,
+      `Pct `    = Percent_rf_short,
+      `N `          = Count_rf_short,
+      `Pct  ` = Percent_boost_short,
+      `N  `       = Count_boost_short
+    ) %>%
+    kable(caption  = caption,
+          digits   = 3,
+          booktabs = TRUE) %>%
+    kable_styling(latex_options = c("striped", "hold_position")) %>%
+    add_header_above(c(" " = 1,
+                       "Logistic Regression" = 2,
+                       "Random Forest"       = 2,
+                       "Boosting"            = 2))
+}
+
+# For long delay tables, adjust column names in select/rename accordingly
+make_cal_table_long <- function(calData, caption) {
+  calData$data %>%
+    select(calibModelVar, bin, Percent, Count) %>%
+    pivot_wider(
+      names_from  = calibModelVar,
+      values_from = c(Percent, Count)
+    ) %>%
+    arrange(bin) %>%
+    select(bin,
+           Percent_lr_long, Count_lr_long,
+           Percent_rf_long, Count_rf_long,
+           Percent_boost_long, Count_boost_long) %>%
+    rename(
+      Bin                 = bin,
+      `Pct`    = Percent_lr_long,
+      `N`          = Count_lr_long,
+      `Pct `    = Percent_rf_long,
+      `N `          = Count_rf_long,
+      `Pct  ` = Percent_boost_long,
+      `N  `       = Count_boost_long
+    ) %>%
+    kable(caption  = caption,
+          digits   = 3,
+          booktabs = TRUE) %>%
+    kable_styling(latex_options = c("striped", "hold_position")) %>%
+    add_header_above(c(" " = 1,
+                       "Logistic Regression" = 2,
+                       "Random Forest"       = 2,
+                       "Boosting"            = 2))
+}
+
+make_cal_table(cal_ord_short, "ORD - Short Delay Calibration Summary")
+```
+
+## Model Calibration Continued
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+make_cal_table_long(cal_ord_long,  "ORD - Long Delay Calibration Summary")
+```
+
+## Model Calibration Continued
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+make_cal_table(calData_pit_short, "PIT - Short Delay Calibration Summary")
+```
+
+## Model Calibration Continued
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+make_cal_table_long(calData_pit_long,  "PIT - Long Delay Calibration Summary")
+```
+
+## Model Application Scenario
+
+- You work on the network planning team and a complaint has come from the operations analytics team about an under performing flight
+- Your goal is to find a departure time that reduces expected delay rate
+  - In a real scenario decision should balance long delay rate, short delay rate, and pricing info
+
+## Find Underperforming Flight
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+df <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv")
+df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
+                    Report_Month = month(Report_Date),
+                    Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
+                    Scheduled.Arrival.Time = (Scheduled.Arrival.Time %/% 100) * 60 + (Scheduled.Arrival.Time %% 100),
+                    Actual.Departure.Time = (Actual.Departure.Time %/% 100) * 60 + (Actual.Departure.Time %% 100),
+                    Actual.Arrival.Time = (Actual.Arrival.Time %/% 100) * 60 + (Actual.Arrival.Time %% 100),
+                    Day.of.Week = factor(Day.of.Week, 
+                                          levels = 1:7, 
+                                          labels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")),
+                    is_delayed = factor(ifelse(Departure.Delay > 0, "delayed", "not_delayed")),
+                    cancelled = ifelse(Actual.Block.Time == 0, 1, 0)
+                    )
+cancelled <- df %>% filter(cancelled == 1)
+not_cancelled <- df %>% filter(cancelled == 0)
+
+not_cancelled <- not_cancelled %>% filter(Dep == "ORD")
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+ord_grouped <- not_cancelled %>% 
+  group_by(Operating.flt.num, Day.of.Week, Report_Month, is_delayed) %>% 
+  summarise(n = n()) %>%
+  mutate(total = sum(n),
+         pct = n / total) %>% filter(is_delayed == "not_delayed")
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+scenario_flight <- not_cancelled %>% filter(Operating.flt.num == 312, Day.of.Week == "Wed", Report_Month == 7)
+
+scenario_flight <- scenario_flight %>% select(Operating.flt.num, Arr, Report_Date, Day.of.Week, Scheduled.Departure.Time, Departure.Delay) %>% arrange(Report_Date)
+
+mins_to_time <- function(mins) {
+  hours <- mins %/% 60
+  minutes <- mins %% 60
+  sprintf("%02d:%02d", hours, minutes)
+}
+
+scenario_flight$Scheduled.Departure.Time <- mins_to_time(scenario_flight$Scheduled.Departure.Time)
+
+kable(scenario_flight, col.names = c("Flt Num", "Arr Airport", "Date", "Day", "Sch Dep Time", "Delay Min"), digits = 3, booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
+```
+
+- Predict probabilities for short and long delays every 5 minutes and compare expected delay rates
+  - Block time = 138 min (generally doesn't change much year to year)
+  - 30 minute before aggregate was taken from 07/09/2025 (schedule doesn't change much year to year)
+
+## Apply Model
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+test <- ordX[1:288, ] %>% select(-n_prior_30)
+test$Scheduled.Departure.Time <- seq(0, 1435, by = 5)
+test$Scheduled.Block.Time <- 138
+test$Scheduled.Arrival.Time <- test$Scheduled.Departure.Time + 138
+test$Day.of.Week.Mon <- 0
+test$Day.of.Week.Tue <- 0
+test$Day.of.Week.Wed <- 1
+test$Day.of.Week.Thu <- 0
+test$Day.of.Week.Fri <- 0
+test$Day.of.Week.Sat <- 0
+test$Day.of.Week.Sun <- 0
+test$Report_Month <- 7
+test <- test %>%
+  rowwise() %>%
+  mutate(n_prior_30 = sum(
+    df$Report_Date == "2025-07-09" &
+    df$Scheduled.Departure.Time >= Scheduled.Departure.Time - 30 &
+    df$Scheduled.Departure.Time <  Scheduled.Departure.Time
+  )) %>%
+  ungroup()
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+test_prob <- predict(ORD_gbmFit1, test, type = "prob")
+
+test$short_prob <- test_prob[,"short_delay"]
+test$long_prob <- test_prob[,"long_delay"]
+test$total_prob <- test$short_prob + test$long_prob
+
+ggplot(test, aes(x = Scheduled.Departure.Time / 60)) +
+  geom_line(aes(y = short_prob, color = "Short")) +
+  geom_line(aes(y = long_prob,  color = "Long")) +
+  geom_line(aes(y = total_prob, color = "Total")) +
+  geom_hline(aes(yintercept = 0.8, color = "Current Total"),  linetype = "dashed", linewidth = 0.5) +
+  geom_hline(aes(yintercept = 0.4, color = "Current Long/Short"),   linetype = "dashed", linewidth = 0.5) +
+  geom_vline(xintercept = 18.25, color = "black", linetype = "solid", linewidth = 0.5) +
+  scale_color_manual(values = c(
+    "Short" = "#00BA38",
+    "Long" = "#F8766D",
+    "Total" = "#619CFF",
+    "Current Total" = "#619CFF",
+    "Current Long/Short" = "#F8766D"
+  ),
+  breaks = c("Total", "Long", "Short", "Current Total", "Current Long/Short")) +
+  labs(x = "Time of Day (Hours)", y = "Expected Delay Rate", color = "Delay Type")
+```
