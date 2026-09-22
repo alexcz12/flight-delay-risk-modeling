@@ -1,0 +1,589 @@
+---
+title: 'Airline On-Time Performance'
+author: "Alex Czerkawski"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+The attached report presents a flight delay prediction model built using a full year of United Airlines operational data (October 2024 – September 2025). The project focuses on departures out of ORD and PIT, comparing three modeling approaches (multinomial logistic regression, random forest, and gradient boosting) and evaluating each on probability calibration. The gradient boosting model was selected for its well-calibrated delay probabilities, which enable planners to simulate the impact of schedule changes on specific underperforming flights before they are made. This work was completed as part of my coursework at the University of Pittsburgh and reflects my interest in applying data science to improve operational reliability at United.
+
+## Introduction
+
+United Airlines operates thousands of flights every day across a large and complex network, and identifying flights at high risk of delay months in advance is a key challenge for the network planning team. Having better visibility into which flights are likely to be delayed is an important step toward building more reliable and operationally efficient schedules.
+
+Understanding what drives flight delays will improve foresight into where and when delays are most likely to occur. Certain routes, markets, and time slots are consistently more prone to delays than others. This will help highlight routes and markets that are consistently delayed, giving planning teams a clearer picture of where the network is underperforming. With this information, better long-term scheduling decisions can be made that improve on-time performance and reduce delays across the network.
+
+Using historical flight data, we will build a model that predicts the probability of departure delays for flights across the network. The dataset includes flight-level information on scheduled times, routes, and day of week, providing a strong foundation for identifying where delays are most likely to occur. By identifying the key factors that contribute to delays, the model will give network planning teams the information they need to adjust routes and time slots where schedule changes could improve reliability and operational performance. Flight-level predictions will allow planners to move beyond aggregate on-time statistics and evaluate specific flights and markets that may benefit from schedule adjustments. The model will give planners a way to simulate the impact of schedule changes before they are made, helping the team make more informed decisions.
+
+Preliminary results for departures out of ORD (Chicago O'Hare International Airport) and PIT (Pittsburgh International Airport) will be presented to a VP in Network Planning. ORD is a United hub while being one of the busiest and most delay-prone airports in the country, making it a natural starting point for this analysis. Pittsburgh is a non-hub airport for United making it an interesting comparison to see how the model generalizes to non-hub stations. If successful, the model will be run across all flights in the network on an ongoing basis, giving planning teams regular insights into where delays are expected and where schedules may need to be adjusted. The long term goal is to make this model a regular part of the network planning process to help the team build better schedules and reduce delays across the network.
+
+## About the Dataset
+
+For this project, we will be using the Airline Service Quality Performance 234 dataset from the Bureau of Transportation Statistics. This dataset contains flight level data for all major US carriers. The data was reported by each carrier as mandated by the Bureau of Transportation Statistics. The purpose is to make performance data available to airline consumers.
+
+A collection of this data can be found at
+<https://www.bts.gov/browse-statistical-products-and-data/bts-publications/airline-service-quality-performance-234-time>.
+
+This project will use a year's worth of United Airlines data between October 2024 and September 2025. It should also be noted that cancelled flights were removed from the dataset, though a similar analysis can be conducted with focus on cancellations.
+
+## Analysis
+
+Throughout this project, the outcome will be a categorical variable called is_delayed. This variable takes one of three possible values, not_delayed if a flight departs before or at scheduled departure time, short_delay if the flight departs within 30 minutes after scheduled departure time, and long_delay if the flight departs after 30 minutes after scheduled departure time. Below is a visualization of delay trends on a day, week, and month level. This section also compares bank structure at ORD and PIT.
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+# Use this block of code to import the csv
+# The that is commented out was used to save the dfs to csv
+library(tidyverse)
+library(caret)
+library(lattice)
+library(pls)
+# df <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv")
+# df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
+#                     Report_Month = month(Report_Date),
+#                     Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
+#                     Scheduled.Arrival.Time = (Scheduled.Arrival.Time %/% 100) * 60 + (Scheduled.Arrival.Time %% 100),
+#                     Actual.Departure.Time = (Actual.Departure.Time %/% 100) * 60 + (Actual.Departure.Time %% 100),
+#                     Actual.Arrival.Time = (Actual.Arrival.Time %/% 100) * 60 + (Actual.Arrival.Time %% 100),
+#                     Day.of.Week = factor(Day.of.Week, 
+#                                           levels = 1:7, 
+#                                           labels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")),
+#                     is_delayed = factor(
+#                       case_when(
+#                         Departure.Delay <= 0 ~ "not_delayed",
+#                         Departure.Delay <= 30 ~ "short_delay",
+#                         Departure.Delay > 30 ~ "long_delay"
+#                       ),
+#                       levels = c("not_delayed", "short_delay", "long_delay")
+#                     ),
+#                     cancelled = ifelse(Actual.Block.Time == 0, 1, 0)
+#                     )
+# cancelled <- df %>% filter(cancelled == 1)
+# not_cancelled <- df %>% filter(cancelled == 0)
+
+# not_cancelled_selected <- not_cancelled %>% select(-Marketing.Airline, -Marketing.flt.num, -Operating.Airline, -Operating.flt.num, -Actual.Departure.Time, -Actual.Arrival.Time, -Actual.Block.Time, -Departure.Delay, -Arrival.Delay, -Delay.Diff, -Wheels.Up, -Wheels.Down, -cancelled, -Tail.Num, -Arr)
+# 
+# ord <- not_cancelled_selected %>% filter(Dep == 'ORD') %>%
+#   mutate(
+#     window_start = Scheduled.Departure.Time - 30,
+#     window_end   = Scheduled.Departure.Time
+#   ) %>%
+#   rowwise() %>%
+#   mutate(n_prior_30 = sum(
+#     ord$Report_Date == Report_Date &
+#     ord$Scheduled.Departure.Time >= window_start &
+#     ord$Scheduled.Departure.Time <  window_end
+#   )) %>%
+#   ungroup()
+# 
+# 
+# pit <- not_cancelled_selected %>% filter(Dep == 'PIT') %>%
+#   mutate(
+#     window_start = Scheduled.Departure.Time - 30,
+#     window_end   = Scheduled.Departure.Time
+#   ) %>%
+#   rowwise() %>%
+#   mutate(n_prior_30 = sum(
+#     ord$Report_Date == Report_Date &
+#     ord$Scheduled.Departure.Time >= window_start &
+#     ord$Scheduled.Departure.Time <  window_end
+#   )) %>%
+#   ungroup()
+# 
+# write.csv(ord, "C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/ord.csv", row.names = FALSE)
+# write.csv(pit, "C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/pit.csv", row.names = FALSE)
+
+ord <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/ord.csv")
+
+pit <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/pit.csv")
+
+ord$Day.of.Week <- factor(ord$Day.of.Week, 
+                           levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+ord$is_delayed  <- factor(ord$is_delayed, 
+                           levels = c("not_delayed", "short_delay", "long_delay"))
+
+pit$Day.of.Week <- factor(pit$Day.of.Week, 
+                           levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+pit$is_delayed  <- factor(pit$is_delayed, 
+                           levels = c("not_delayed", "short_delay", "long_delay"))
+
+ordX <- ord %>% select(-is_delayed, -Dep, -Report_Date, -window_start, -window_end)
+pitX <- pit %>% select(-is_delayed, -Dep, -Report_Date, -window_start, -window_end)
+
+ord_dummies <- dummyVars(~ ., data = ordX)
+ordX <- predict(ord_dummies, newdata = ordX) %>% as.data.frame()
+
+pit_dummies <- dummyVars(~ ., data = pitX)
+pitX <- predict(pit_dummies, newdata = pitX) %>% as.data.frame()
+```
+
+### Bank Structure
+
+Banks are a schedule structure tool that allow airlines to provide better connectivity across a network. Between the red lines on the plot below is an example of an arrival bank (few departures, many arrivals). Between the blue lines is an example of a departure bank (many departures, few arrivals). These alternate throughout the day at hub airports. Banks allow customers at origins to have access to every destination across the network in only two flight legs with minimal layover time.
+
+```{r,echo=FALSE, warning=FALSE,fig.height=3.5}
+set.seed(100)
+ggplot(ord %>% slice_sample(n=800), aes(x=Scheduled.Departure.Time / 60, y=Report_Month, color = is_delayed)) + geom_point(size=1) + 
+  labs(
+    x = "Scheduled Departure Time (Hours)",
+    y = "Month",
+    title = "Delay type across Months by Scheduled Departure Time at ORD"
+    ) +
+  geom_vline(xintercept = c(17.5, 19), 
+             color      = "blue", 
+             linetype   = "dashed",
+             linewidth  = 0.5) +
+  geom_vline(xintercept = c(11.5, 12.5), 
+             color      = "red", 
+             linetype   = "dashed",
+             linewidth  = 0.5) +
+  scale_color_manual(values = c(
+    "not_delayed" = "darkgreen",
+    "short_delay" = "yellow",
+    "long_delay"  = "red"
+  ))
+```
+
+The plot above shows 800 randomly sampled ORD departures. Delays tend to increase throughout the day, and this is consistent in nearly every month. This plot also shows the bank structure at ORD, a behavior that will be incorporated into the model through an engineered predictor.
+
+```{r,echo=FALSE, warning=FALSE,fig.height=3.5}
+ggplot(pit, aes(x=Scheduled.Departure.Time / 60, y=Report_Month, color = is_delayed)) + geom_point(size=1) + 
+  labs(
+    x = "Scheduled Departure Time (Hours)",
+    y = "Month",
+    title = "Delay type across Months by Scheduled Departure Time at PIT"
+    ) +
+  scale_color_manual(values = c(
+    "not_delayed" = "darkgreen",
+    "short_delay" = "yellow",
+    "long_delay"  = "red"
+  ))
+```
+
+The plot above shows every PIT departure in the dataset. Similar to the ORD, PIT tends to have more delays later in the day, especially when considering long delays. Unlike ORD, PIT has no clear bank structure as its schedule is built around feeding into arrival banks at hubs. An engineered predictor that captures airport congestion will still be used when fitting this model.
+
+### Delay Rate by Day of Week
+
+```{r,echo=FALSE,warning=FALSE,fig.height=3.5}
+ggplot(ord, aes(x = Day.of.Week, fill = factor(is_delayed, levels = c("long_delay", "short_delay", "not_delayed")))) +
+  geom_bar(position = "fill") +
+  labs(
+    x = "Day of the Week",
+    y = "Delay Rate",
+    title = "Delay rates by Day of Week at ORD",
+    fill = "is_delayed"
+  ) +
+  scale_fill_manual(values = c(
+    "not_delayed" = "darkgreen",
+    "short_delay" = "yellow",
+    "long_delay"  = "red"
+  ))
+```
+
+```{r,echo=FALSE,warning=FALSE,fig.height=3.5}
+ggplot(pit, aes(x = Day.of.Week, fill = factor(is_delayed, levels = c("long_delay", "short_delay", "not_delayed")))) +
+  geom_bar(position = "fill") +
+  labs(
+    x = "Day of the Week",
+    y = "Delay Rate",
+    title = "Delay rates by Day of Week at PIT",
+    fill = "is_delayed"
+  ) +
+  scale_fill_manual(values = c(
+    "not_delayed" = "darkgreen",
+    "short_delay" = "yellow",
+    "long_delay"  = "red"
+  ))
+```
+
+```{r,echo=FALSE, warning=FALSE}
+# Below is the code that was used to fit the PIT logistic regression model
+# 
+# ctrl <- trainControl(method = "cv", number = 4, classProbs=TRUE)
+# 
+# set.seed(100)
+# PIT_logisticReg <- train(x = pitX, y = pit$is_delayed,
+#                  method = "multinom",
+#                  preProc = c("center", "scale"),
+#                  trControl = ctrl)
+# 
+# saveRDS(PIT_logisticReg, "PITLogisticRegression.rds")
+
+
+# Below is the code that was used to fit the ORD logistic regression model
+# 
+# set.seed(100)
+# ORD_logisticReg <- train(x = ordX, y = ord$is_delayed,
+#                  method = "multinom",
+#                  preProc = c("center", "scale"),
+#                  trControl = ctrl)
+# 
+# saveRDS(ORD_logisticReg, "ORDLogisticRegression.rds")
+
+PIT_logisticReg <- readRDS("PITLogisticRegression.rds")
+
+ORD_logisticReg <- readRDS("ORDLogisticRegression.rds")
+```
+
+```{r,echo=FALSE}
+# Below is the code that was used to fit the PIT random forest model
+# 
+# set.seed(100)
+# mtryGrid <- data.frame(
+#   mtry = c(1, 2, 3)
+# )
+# PIT_rfTune <- train(x = pitX, y = pit$is_delayed,
+#                method = "rf",
+#                tuneGrid = mtryGrid,
+#                ntree = 200,
+#                importance = TRUE,
+#                trControl = ctrl)
+# 
+# saveRDS(PIT_rfTune, "PITRandomForest.rds")
+
+# Below is the code that was used to fit the ORD random forest model
+#
+# set.seed(100)
+# mtryGrid <- data.frame(
+#   mtry = c(1, 2, 3)
+# )
+# ORD_rfTune <- train(x = ordX, y = ord$is_delayed,
+#                method = "rf",
+#                tuneGrid = mtryGrid,
+#                ntree = 200,
+#                importance = TRUE,
+#                trControl = ctrl)
+# 
+# saveRDS(ORD_rfTune, "ORDRandomForest.rds")
+
+PIT_rfTune <- readRDS("PITRandomForest.rds")
+
+ORD_rfTune <- readRDS("ORDRandomForest.rds")
+```
+
+```{r,echo=FALSE}
+# Below is the code that was used to fit the PIT boosting model
+# 
+# set.seed(100)
+# PIT_gbmFit1 <- train(x = pitX, y = pit$is_delayed,
+#                  method = "gbm",
+#                  trControl = ctrl,
+#                  ## This last option is actually one
+#                  ## for gbm() that passes through
+#                  verbose = FALSE)
+# 
+# saveRDS(PIT_gbmFit1, "PITBoosting.rds")
+
+# Below is the code that was used to fit the ORD boosting model
+# 
+# set.seed(100)
+# ORD_gbmFit1 <- train(x = ordX, y = ord$is_delayed,
+#                  method = "gbm",
+#                  trControl = ctrl,
+#                  ## This last option is actually one
+#                  ## for gbm() that passes through
+#                  verbose = FALSE)
+# 
+# saveRDS(ORD_gbmFit1, "ORDBoosting.rds")
+
+PIT_gbmFit1 <- readRDS("PITBoosting.rds")
+
+ORD_gbmFit1 <- readRDS("ORDBoosting.rds")
+```
+
+### Model Fitting
+
+Three models were fit for both ORD and PIT departures: multinomial logistic regression, random forest, and gradient boosting. At ORD, 60.8% of flights departed on time, 24.9% experienced a short delay, and 14.3% experienced a long delay. As noted above when splitting out each day of the week, PIT had a notably better on-time performance, with 78.2% of flights departing on time, 13.3% experiencing a short delay, and 8.5% experiencing a long delay. Each model was trained using the following predictors: scheduled departure time, scheduled arrival time, scheduled block time, day of the week, month, and the number of flights scheduled to depart in the 30 minutes prior to each flight's scheduled departure time. The final predictor is an engineered feature for this analysis to capture the effect of congestion on departure delays (ideally capturing bank behavior at ORD). Models were evaluated on calibration and bias, with well-calibrated probabilities being particularly important for the intended use case of simulating the impact of schedule changes.
+
+### Model Calibration
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+# ORD predictions
+ord_lr_prob <- predict(ORD_logisticReg, ordX, type = "prob")
+ord_rf_prob <- predict(ORD_rfTune, ordX, type = "prob")
+ord_boost_prob <- predict(ORD_gbmFit1, ordX, type = "prob")
+
+ord$lr_short <- ord_lr_prob[,"short_delay"]
+ord$lr_long <- ord_lr_prob[,"long_delay"]
+ord$rf_short <- ord_rf_prob[,"short_delay"]
+ord$rf_long <- ord_rf_prob[,"long_delay"]
+ord$boost_short <- ord_boost_prob[,"short_delay"]
+ord$boost_long <- ord_boost_prob[,"long_delay"]
+
+# PIT predictions
+pit_lr_prob <- predict(PIT_logisticReg, pitX, type = "prob")
+pit_rf_prob <- predict(PIT_rfTune, pitX, type = "prob")
+pit_boost_prob <- predict(PIT_gbmFit1, pitX, type = "prob")
+
+pit$lr_short <- pit_lr_prob[,"short_delay"]
+pit$lr_long <- pit_lr_prob[,"long_delay"]
+pit$rf_short <- pit_rf_prob[,"short_delay"]
+pit$rf_long <- pit_rf_prob[,"long_delay"]
+pit$boost_short <- pit_boost_prob[,"short_delay"]
+pit$boost_long <- pit_boost_prob[,"long_delay"]
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+# Used claude to create this though it was based on a simpler calibration plot that I made
+
+# Create binary factors for each class
+ord$is_short_delay <- factor(ifelse(ord$is_delayed == "short_delay", "short_delay", "other"),
+                              levels = c("short_delay", "other"))
+
+ord$is_long_delay  <- factor(ifelse(ord$is_delayed == "long_delay", "long_delay", "other"),
+                              levels = c("long_delay", "other"))
+
+pit$is_short_delay <- factor(ifelse(pit$is_delayed == "short_delay", "short_delay", "other"),
+                              levels = c("short_delay", "other"))
+
+pit$is_long_delay  <- factor(ifelse(pit$is_delayed == "long_delay", "long_delay", "other"),
+                              levels = c("long_delay", "other"))
+
+# ORD - short delay
+calData_ord_short <- calibration(is_short_delay ~ lr_short + rf_short + boost_short, 
+                                  data = ord, cuts = 10)
+cal_ord_short <- ggplot(calData_ord_short$data) +
+  geom_point(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_line(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_abline() +
+  labs(title = "ORD - Short Delay Calibration",
+       x = "Predicted probability", y = "Observed event probability", color = "Classifier")
+
+# ORD - long delay
+calData_ord_long <- calibration(is_long_delay ~ lr_long + rf_long + boost_long, 
+                                 data = ord, cuts = 10)
+cal_ord_long <- ggplot(calData_ord_long$data) +
+  geom_point(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_line(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_abline() +
+  labs(title = "ORD - Long Delay Calibration",
+       x = "Predicted probability", y = "Observed event probability", color = "Classifier")
+
+# PIT - short delay
+calData_pit_short <- calibration(is_short_delay ~ lr_short + rf_short + boost_short, 
+                                  data = pit, cuts = 10)
+cal_pit_short <- ggplot(calData_pit_short$data) +
+  geom_point(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_line(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_abline() +
+  labs(title = "PIT - Short Delay Calibration",
+       x = "Predicted probability", y = "Observed event probability", color = "Classifier")
+
+# PIT - long delay
+calData_pit_long <- calibration(is_long_delay ~ lr_long + rf_long + boost_long, 
+                                 data = pit, cuts = 10)
+cal_pit_long <- ggplot(calData_pit_long$data) +
+  geom_point(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_line(aes(midpoint, Percent, color = calibModelVar)) +
+  geom_abline() +
+  labs(title = "PIT - Long Delay Calibration",
+       x = "Predicted probability", y = "Observed event probability", color = "Classifier")
+
+# Display all 4 together
+library(gridExtra)
+grid.arrange(cal_ord_short, cal_ord_long, cal_pit_short, cal_pit_long, ncol = 2)
+```
+
+As seen in the calibration plot above, across both departure airports and delay intensities the gradient boosting and logistic regression models are well calibrated. In all 4 plots, the logistic regression models can be seen as more biased towards the more common outcome (no delay). Conversely, the random forest ORD model is poorly calibrated and the PIT model is extremely biased towards the no delay outcome.
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+# Used claude to create these tables
+library(kableExtra)
+
+make_cal_table <- function(calData, caption) {
+  calData$data %>%
+    select(calibModelVar, bin, Percent, Count) %>%
+    pivot_wider(
+      names_from  = calibModelVar,
+      values_from = c(Percent, Count)
+    ) %>%
+    arrange(bin) %>%
+    select(bin,
+           Percent_lr_short, Count_lr_short,
+           Percent_rf_short, Count_rf_short,
+           Percent_boost_short, Count_boost_short) %>%
+    rename(
+      Bin                 = bin,
+      `Pct`    = Percent_lr_short,
+      `N`          = Count_lr_short,
+      `Pct `    = Percent_rf_short,
+      `N `          = Count_rf_short,
+      `Pct  ` = Percent_boost_short,
+      `N  `       = Count_boost_short
+    ) %>%
+    kable(caption  = caption,
+          digits   = 3,
+          booktabs = TRUE) %>%
+    kable_styling(latex_options = c("striped", "hold_position")) %>%
+    add_header_above(c(" " = 1,
+                       "Logistic Regression" = 2,
+                       "Random Forest"       = 2,
+                       "Boosting"            = 2))
+}
+
+# For long delay tables, adjust column names in select/rename accordingly
+make_cal_table_long <- function(calData, caption) {
+  calData$data %>%
+    select(calibModelVar, bin, Percent, Count) %>%
+    pivot_wider(
+      names_from  = calibModelVar,
+      values_from = c(Percent, Count)
+    ) %>%
+    arrange(bin) %>%
+    select(bin,
+           Percent_lr_long, Count_lr_long,
+           Percent_rf_long, Count_rf_long,
+           Percent_boost_long, Count_boost_long) %>%
+    rename(
+      Bin                 = bin,
+      `Pct`    = Percent_lr_long,
+      `N`          = Count_lr_long,
+      `Pct `    = Percent_rf_long,
+      `N `          = Count_rf_long,
+      `Pct  ` = Percent_boost_long,
+      `N  `       = Count_boost_long
+    ) %>%
+    kable(caption  = caption,
+          digits   = 3,
+          booktabs = TRUE) %>%
+    kable_styling(latex_options = c("striped", "hold_position")) %>%
+    add_header_above(c(" " = 1,
+                       "Logistic Regression" = 2,
+                       "Random Forest"       = 2,
+                       "Boosting"            = 2))
+}
+
+make_cal_table(cal_ord_short, "ORD - Short Delay Calibration Summary")
+make_cal_table_long(cal_ord_long,  "ORD - Long Delay Calibration Summary")
+```
+
+As seen in the tables above, the logistic regression and gradient boosting models are calibrated well for the ORD model. The deviation from the line in the plot by the boosting model is caused by 0 predictions made in the high predicted delay rate bins. A similar pattern is seen with the logistic regression model, though the entire distribution is biased more towards the more common outcome (no delay). As mentioned above, the random forest model is poorly calibrated, which is consistent when looking at the tables.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+make_cal_table(calData_pit_short, "PIT - Short Delay Calibration Summary")
+make_cal_table_long(calData_pit_long,  "PIT - Long Delay Calibration Summary")
+```
+
+As seen in the tables above, the logistic regression and gradient boosting models are calibrated well for the PIT model. The deviation from the line in the plot by the boosting model is caused by 0 predictions made in the high predicted delay rate bins. A similar pattern is seen with the logistic regression model, though the entire distribution is biased more towards the more common outcome (no delay). As mentioned above, the random forest model is poorly calibrated, while in addition is extremely biased towards the common outcome.
+
+For both departure airports, the gradient boosting model is selected because of better calibration and reduced bias. Both the ORD and PIT models deal with a large majority class being on-time flights. Intuitively, it makes sense that a gradient boosting model performs the best in these conditions as it weighs misclassified flights more heavily in future iterations compared to random forest, which weights all observations equally across every tree.
+
+## Discussion
+
+The following section demonstrates an application of the gradient boosting model. Using a specific underperforming flight as an example, we will show how the model can evaluate the impact of potential schedule changes. By simulating delay probabilities across all departure times in a day, planners can identify windows where a flight is less likely to be delayed and use this information to make more informed scheduling decisions.
+
+### Find Underperforming Flight
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+df <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv")
+df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
+                    Report_Month = month(Report_Date),
+                    Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
+                    Scheduled.Arrival.Time = (Scheduled.Arrival.Time %/% 100) * 60 + (Scheduled.Arrival.Time %% 100),
+                    Actual.Departure.Time = (Actual.Departure.Time %/% 100) * 60 + (Actual.Departure.Time %% 100),
+                    Actual.Arrival.Time = (Actual.Arrival.Time %/% 100) * 60 + (Actual.Arrival.Time %% 100),
+                    Day.of.Week = factor(Day.of.Week, 
+                                          levels = 1:7, 
+                                          labels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")),
+                    is_delayed = factor(ifelse(Departure.Delay > 0, "delayed", "not_delayed")),
+                    cancelled = ifelse(Actual.Block.Time == 0, 1, 0)
+                    )
+cancelled <- df %>% filter(cancelled == 1)
+not_cancelled <- df %>% filter(cancelled == 0)
+
+not_cancelled <- not_cancelled %>% filter(Dep == "ORD")
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+ord_grouped <- not_cancelled %>% 
+  group_by(Operating.flt.num, Day.of.Week, Report_Month, is_delayed) %>% 
+  summarise(n = n()) %>%
+  mutate(total = sum(n),
+         pct = n / total) %>% filter(is_delayed == "not_delayed")
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+scenario_flight <- not_cancelled %>% filter(Operating.flt.num == 312, Day.of.Week == "Wed", Report_Month == 7)
+
+scenario_flight <- scenario_flight %>% select(Operating.flt.num, Arr, Report_Date, Day.of.Week, Scheduled.Departure.Time, Departure.Delay) %>% arrange(Report_Date)
+
+mins_to_time <- function(mins) {
+  hours <- mins %/% 60
+  minutes <- mins %% 60
+  sprintf("%02d:%02d", hours, minutes)
+}
+
+scenario_flight$Scheduled.Departure.Time <- mins_to_time(scenario_flight$Scheduled.Departure.Time)
+
+kable(scenario_flight, col.names = c("Flt Num", "Arr Airport", "Date", "Day", "Sch Dep Time", "Delay Min"), digits = 3, booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
+```
+
+Flight 312 to CHS (Charleston International Airport) on Wednesdays in July was selected due to its high total delay rate (4/5 flights or 80%). After selecting this flight, we'll predict probabilities for short and long delays every 5 minutes and compare expected delay rates. Two assumptions needed to be made that real decision makers would have access to. First, block time will be set to 138 minutes which was the block time from the flight during 2025. Second, the 30 minute before aggregate will be taken from 07/09/2025. For this example, these are good assumptions since block times and the overall schedule don't change significantly year-to-year.
+
+### Apply Model
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+test <- ordX[1:288, ] %>% select(-n_prior_30)
+test$Scheduled.Departure.Time <- seq(0, 1435, by = 5)
+test$Scheduled.Block.Time <- 138
+test$Scheduled.Arrival.Time <- test$Scheduled.Departure.Time + 138
+test$Day.of.Week.Mon <- 0
+test$Day.of.Week.Tue <- 0
+test$Day.of.Week.Wed <- 1
+test$Day.of.Week.Thu <- 0
+test$Day.of.Week.Fri <- 0
+test$Day.of.Week.Sat <- 0
+test$Day.of.Week.Sun <- 0
+test$Report_Month <- 7
+test <- test %>%
+  rowwise() %>%
+  mutate(n_prior_30 = sum(
+    df$Report_Date == "2025-07-09" &
+    df$Scheduled.Departure.Time >= Scheduled.Departure.Time - 30 &
+    df$Scheduled.Departure.Time <  Scheduled.Departure.Time
+  )) %>%
+  ungroup()
+```
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE,fig.height=3.5}
+test_prob <- predict(ORD_gbmFit1, test, type = "prob")
+
+test$short_prob <- test_prob[,"short_delay"]
+test$long_prob <- test_prob[,"long_delay"]
+test$total_prob <- test$short_prob + test$long_prob
+
+ggplot(test, aes(x = Scheduled.Departure.Time / 60)) +
+  geom_line(aes(y = short_prob, color = "Short")) +
+  geom_line(aes(y = long_prob,  color = "Long")) +
+  geom_line(aes(y = total_prob, color = "Total")) +
+  geom_hline(aes(yintercept = 0.8, color = "Current Total"),  linetype = "dashed", linewidth = 0.5) +
+  geom_hline(aes(yintercept = 0.4, color = "Current Long/Short"),   linetype = "dashed", linewidth = 0.5) +
+  geom_vline(xintercept = 18.25, color = "black", linetype = "solid", linewidth = 0.5) +
+  scale_color_manual(values = c(
+    "Short" = "#00BA38",
+    "Long" = "#F8766D",
+    "Total" = "#619CFF",
+    "Current Total" = "#619CFF",
+    "Current Long/Short" = "#F8766D"
+  ),
+  breaks = c("Total", "Long", "Short", "Current Total", "Current Long/Short")) +
+  labs(x = "Time of Day (Hours)", y = "Expected Delay Rate", color = "Delay Type")
+```
+
+The plot above shows the gradient boosted model's predictions by time of day with the vertical black line indicating where the flight is currently scheduled. When comparing the predicted delay rates to the actual total delay rate (4/5 flights or 80%), short delay rate (2/5 flights or 40%), and long delay rate (2/5 flights or 40%), we can see the model is calibrated fairly well for this market considering the sample is only 5 flights. As we can see, there is a clear trend towards lower expected delays earlier in the day, reaching a minimum around 5:30.
+
+In an actual example of this problem, decision makers would also have to consider factors such as demand for the CHS market at different departure times and ripple effects in the schedule. For example, moving flight 312 on Wednesdays in July to earlier in the day will likely have to be swapped with another flight, as gates utilization at a hub like ORD is high during departure banks. A flight in an earlier bank would be selected and a similar visualization to the one above would be done for that market. Ideally, a time would be selected that minimizes the total delay risk of the system, not just an individual flight. There may also be scenarios where certain flights are prioritized over others, as they may have higher counts of connecting passengers historically, higher counts of connecting crews historically, or other factors that may affect operational efficiency. While this model does not give an entire business case assessment, it gives decision makers critical expectations about where flights can be moved to improve operational efficiency of the system.
+
+### Obstacles
+
+The two main obstacles in this analysis were collecting the data and determining a way to quantify delay intensity. Downloading the data files was difficult because they were stored in .asc format. These datasets were very large and therefore took a long time to get into the correct format for analysis. The tables also did not include column names, so a key was found and columns had to be matched to the key.
+
+Originally, a model was fit to delay intensity as a continuous variable. This approach did not work well due to the dataset having too much noise. The best model only achieved a cross-validated RMSE of about 40 minutes, which would not have given decision makers any more information than they already had.
+
+### Future Direction of the Project
+
+The next natural step in this project is improving the model by adding predictors such as aircraft type and arrival airport. These predictors will help improve flight level predictions and ideally improve calibration further. In addition, fitting models for all hub airports (EWR, IAD, IAH, DEN, SFO, LAX) would give decision makers more options for adjusting flights. Though it may be interesting to fit models for non-hub airports, there are not as many delay risks and carry less operational impact, making hub airports the higher priority.
