@@ -2,7 +2,7 @@
 
 A predictive modeling project analyzing flight departure delays using public airline performance data, with an emphasis on probability calibration over raw accuracy, and a practical application to flight scheduling decisions.
 
-This work was completed as a course project at the University of Pittsburgh, reflecting a broader interest in applying data science and statistical modeling to real-world operational challenges.
+This work was completed as a course project at the University of Pittsburgh, reflecting an interest in applying data science and statistical modeling to real-world operational challenges.
 
 ## Project Overview
 
