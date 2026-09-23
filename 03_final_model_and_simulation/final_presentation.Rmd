@@ -20,9 +20,11 @@ library(caret)
 library(lattice)
 library(pls)
 library(kableExtra)
-ord <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/ord.csv")
 
-pit <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/pit.csv")
+# Import datasets
+ord <- read.csv("ord.csv")
+
+pit <- read.csv("pit.csv")
 
 ord$Day.of.Week <- factor(ord$Day.of.Week, 
                            levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
@@ -329,7 +331,7 @@ make_cal_table_long(calData_pit_long,  "PIT - Long Delay Calibration Summary")
 ## Find Underperforming Flight
 
 ```{r, echo=FALSE,message=FALSE,warning=FALSE}
-df <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv")
+df <- read.csv("final_project_dataset.csv")
 df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
                     Report_Month = month(Report_Date),
                     Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
