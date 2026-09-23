@@ -41,7 +41,7 @@ Each folder contains both a `.Rmd` (source code) and rendered `.pdf` report/pres
 - **Languages/Tools:** R (tidyverse, caret, ggplot2)
 - **Modeling:** Multinomial Logistic Regression, Random Forest, Gradient Boosting
 - **Evaluation:** ROC/AUC, sensitivity/specificity, and probability calibration analysis
-- **Feature engineering:** time-window-based congestion metric derived from scheduling density
+- **Feature engineering:** congestion metric derived from scheduled departure density
 
 ## Notes
 - Raw data and trained model files are not included in this repository due to file size; the code to generate both is included in full.
