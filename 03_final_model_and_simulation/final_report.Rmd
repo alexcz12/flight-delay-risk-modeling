@@ -35,70 +35,75 @@ This project will use a year's worth of United Airlines data between October 202
 Throughout this project, the outcome will be a categorical variable called is_delayed. This variable takes one of three possible values, not_delayed if a flight departs before or at scheduled departure time, short_delay if the flight departs within 30 minutes after scheduled departure time, and long_delay if the flight departs after 30 minutes after scheduled departure time. Below is a visualization of delay trends on a day, week, and month level. This section also compares bank structure at ORD and PIT.
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-# Use this block of code to import the csv
-# The that is commented out was used to save the dfs to csv
 library(tidyverse)
 library(caret)
 library(lattice)
 library(pls)
-# df <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv")
-# df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
-#                     Report_Month = month(Report_Date),
-#                     Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
-#                     Scheduled.Arrival.Time = (Scheduled.Arrival.Time %/% 100) * 60 + (Scheduled.Arrival.Time %% 100),
-#                     Actual.Departure.Time = (Actual.Departure.Time %/% 100) * 60 + (Actual.Departure.Time %% 100),
-#                     Actual.Arrival.Time = (Actual.Arrival.Time %/% 100) * 60 + (Actual.Arrival.Time %% 100),
-#                     Day.of.Week = factor(Day.of.Week, 
-#                                           levels = 1:7, 
-#                                           labels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")),
-#                     is_delayed = factor(
-#                       case_when(
-#                         Departure.Delay <= 0 ~ "not_delayed",
-#                         Departure.Delay <= 30 ~ "short_delay",
-#                         Departure.Delay > 30 ~ "long_delay"
-#                       ),
-#                       levels = c("not_delayed", "short_delay", "long_delay")
-#                     ),
-#                     cancelled = ifelse(Actual.Block.Time == 0, 1, 0)
-#                     )
-# cancelled <- df %>% filter(cancelled == 1)
-# not_cancelled <- df %>% filter(cancelled == 0)
 
-# not_cancelled_selected <- not_cancelled %>% select(-Marketing.Airline, -Marketing.flt.num, -Operating.Airline, -Operating.flt.num, -Actual.Departure.Time, -Actual.Arrival.Time, -Actual.Block.Time, -Departure.Delay, -Arrival.Delay, -Delay.Diff, -Wheels.Up, -Wheels.Down, -cancelled, -Tail.Num, -Arr)
-# 
-# ord <- not_cancelled_selected %>% filter(Dep == 'ORD') %>%
-#   mutate(
-#     window_start = Scheduled.Departure.Time - 30,
-#     window_end   = Scheduled.Departure.Time
-#   ) %>%
-#   rowwise() %>%
-#   mutate(n_prior_30 = sum(
-#     ord$Report_Date == Report_Date &
-#     ord$Scheduled.Departure.Time >= window_start &
-#     ord$Scheduled.Departure.Time <  window_end
-#   )) %>%
-#   ungroup()
-# 
-# 
-# pit <- not_cancelled_selected %>% filter(Dep == 'PIT') %>%
-#   mutate(
-#     window_start = Scheduled.Departure.Time - 30,
-#     window_end   = Scheduled.Departure.Time
-#   ) %>%
-#   rowwise() %>%
-#   mutate(n_prior_30 = sum(
-#     ord$Report_Date == Report_Date &
-#     ord$Scheduled.Departure.Time >= window_start &
-#     ord$Scheduled.Departure.Time <  window_end
-#   )) %>%
-#   ungroup()
-# 
-# write.csv(ord, "C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/ord.csv", row.names = FALSE)
-# write.csv(pit, "C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/pit.csv", row.names = FALSE)
+# Use this block of code to import the csv
+if (file.exists("ord.csv") && file.exists("pit.csv")) {
+  ord <- read.csv("ord.csv")
+  pit <- read.csv("pit.csv")
+} else {
+  df <- read.csv("final_project_dataset.csv")
+  df <- df %>% mutate(
+    Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
+    Report_Month = month(Report_Date),
+    Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
+    Scheduled.Arrival.Time = (Scheduled.Arrival.Time %/% 100) * 60 + (Scheduled.Arrival.Time %% 100),
+    Actual.Departure.Time = (Actual.Departure.Time %/% 100) * 60 + (Actual.Departure.Time %% 100),
+    Actual.Arrival.Time = (Actual.Arrival.Time %/% 100) * 60 + (Actual.Arrival.Time %% 100),
+    Day.of.Week = factor(Day.of.Week, levels = 1:7,
+                          labels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")),
+    is_delayed = factor(
+      case_when(
+        Departure.Delay <= 0 ~ "not_delayed",
+        Departure.Delay <= 30 ~ "short_delay",
+        Departure.Delay > 30 ~ "long_delay"
+      ),
+      levels = c("not_delayed", "short_delay", "long_delay")
+    ),
+    cancelled = ifelse(Actual.Block.Time == 0, 1, 0)
+  )
 
-ord <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/ord.csv")
+  not_cancelled_selected <- df %>%
+    filter(cancelled == 0) %>%
+    select(-Marketing.Airline, -Marketing.flt.num, -Operating.Airline, -Operating.flt.num,
+           -Actual.Departure.Time, -Actual.Arrival.Time, -Actual.Block.Time,
+           -Departure.Delay, -Arrival.Delay, -Delay.Diff, -Wheels.Up, -Wheels.Down,
+           -cancelled, -Tail.Num, -Arr)
 
-pit <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/pit.csv")
+  # Engineer congestion feature: number of flights scheduled to depart
+  # in the 30 minutes prior to each flight's scheduled departure
+  ord_base <- not_cancelled_selected %>% filter(Dep == 'ORD') %>%
+    mutate(window_start = Scheduled.Departure.Time - 30,
+           window_end   = Scheduled.Departure.Time)
+
+  ord <- ord_base %>%
+    rowwise() %>%
+    mutate(n_prior_30 = sum(
+      ord_base$Report_Date == Report_Date &
+      ord_base$Scheduled.Departure.Time >= window_start &
+      ord_base$Scheduled.Departure.Time <  window_end
+    )) %>%
+    ungroup()
+
+  pit_base <- not_cancelled_selected %>% filter(Dep == 'PIT') %>%
+    mutate(window_start = Scheduled.Departure.Time - 30,
+           window_end   = Scheduled.Departure.Time)
+
+  pit <- pit_base %>%
+    rowwise() %>%
+    mutate(n_prior_30 = sum(
+      pit_base$Report_Date == Report_Date &
+      pit_base$Scheduled.Departure.Time >= window_start &
+      pit_base$Scheduled.Departure.Time <  window_end
+    )) %>%
+    ungroup()
+
+  write.csv(ord, "ord.csv", row.names = FALSE)
+  write.csv(pit, "pit.csv", row.names = FALSE)
+}
 
 ord$Day.of.Week <- factor(ord$Day.of.Week, 
                            levels = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
@@ -200,98 +205,92 @@ ggplot(pit, aes(x = Day.of.Week, fill = factor(is_delayed, levels = c("long_dela
 ```
 
 ```{r,echo=FALSE, warning=FALSE}
-# Below is the code that was used to fit the PIT logistic regression model
-# 
-# ctrl <- trainControl(method = "cv", number = 4, classProbs=TRUE)
-# 
-# set.seed(100)
-# PIT_logisticReg <- train(x = pitX, y = pit$is_delayed,
-#                  method = "multinom",
-#                  preProc = c("center", "scale"),
-#                  trControl = ctrl)
-# 
-# saveRDS(PIT_logisticReg, "PITLogisticRegression.rds")
+# Fit Logistic Regression models
+ctrl <- trainControl(method = "cv", number = 4, classProbs = TRUE)
 
+# PIT Logistic Regression
+if (file.exists("PITLogisticRegression.rds")) {
+  PIT_logisticReg <- readRDS("PITLogisticRegression.rds")
+} else {
+  set.seed(100)
+  PIT_logisticReg <- train(x = pitX, y = pit$is_delayed,
+                            method = "multinom",
+                            preProc = c("center", "scale"),
+                            trControl = ctrl)
+  saveRDS(PIT_logisticReg, "PITLogisticRegression.rds")
+}
 
-# Below is the code that was used to fit the ORD logistic regression model
-# 
-# set.seed(100)
-# ORD_logisticReg <- train(x = ordX, y = ord$is_delayed,
-#                  method = "multinom",
-#                  preProc = c("center", "scale"),
-#                  trControl = ctrl)
-# 
-# saveRDS(ORD_logisticReg, "ORDLogisticRegression.rds")
-
-PIT_logisticReg <- readRDS("PITLogisticRegression.rds")
-
-ORD_logisticReg <- readRDS("ORDLogisticRegression.rds")
+# ORD Logistic Regression
+if (file.exists("ORDLogisticRegression.rds")) {
+  ORD_logisticReg <- readRDS("ORDLogisticRegression.rds")
+} else {
+  set.seed(100)
+  ORD_logisticReg <- train(x = ordX, y = ord$is_delayed,
+                            method = "multinom",
+                            preProc = c("center", "scale"),
+                            trControl = ctrl)
+  saveRDS(ORD_logisticReg, "ORDLogisticRegression.rds")
+}
 ```
 
 ```{r,echo=FALSE}
-# Below is the code that was used to fit the PIT random forest model
-# 
-# set.seed(100)
-# mtryGrid <- data.frame(
-#   mtry = c(1, 2, 3)
-# )
-# PIT_rfTune <- train(x = pitX, y = pit$is_delayed,
-#                method = "rf",
-#                tuneGrid = mtryGrid,
-#                ntree = 200,
-#                importance = TRUE,
-#                trControl = ctrl)
-# 
-# saveRDS(PIT_rfTune, "PITRandomForest.rds")
+# Fit Random Forest models
+mtryGrid <- data.frame(mtry = c(1, 2, 3))
 
-# Below is the code that was used to fit the ORD random forest model
-#
-# set.seed(100)
-# mtryGrid <- data.frame(
-#   mtry = c(1, 2, 3)
-# )
-# ORD_rfTune <- train(x = ordX, y = ord$is_delayed,
-#                method = "rf",
-#                tuneGrid = mtryGrid,
-#                ntree = 200,
-#                importance = TRUE,
-#                trControl = ctrl)
-# 
-# saveRDS(ORD_rfTune, "ORDRandomForest.rds")
+# PIT Random Forest
+if (file.exists("PITRandomForest.rds")) {
+  PIT_rfTune <- readRDS("PITRandomForest.rds")
+} else {
+  set.seed(100)
+  PIT_rfTune <- train(x = pitX, y = pit$is_delayed,
+                       method = "rf",
+                       tuneGrid = mtryGrid,
+                       ntree = 200,
+                       importance = TRUE,
+                       trControl = ctrl)
+  saveRDS(PIT_rfTune, "PITRandomForest.rds")
+}
 
-PIT_rfTune <- readRDS("PITRandomForest.rds")
-
-ORD_rfTune <- readRDS("ORDRandomForest.rds")
+# ORD Random Forest
+if (file.exists("ORDRandomForest.rds")) {
+  ORD_rfTune <- readRDS("ORDRandomForest.rds")
+} else {
+  set.seed(100)
+  ORD_rfTune <- train(x = ordX, y = ord$is_delayed,
+                       method = "rf",
+                       tuneGrid = mtryGrid,
+                       ntree = 200,
+                       importance = TRUE,
+                       trControl = ctrl)
+  saveRDS(ORD_rfTune, "ORDRandomForest.rds")
+}
 ```
 
 ```{r,echo=FALSE}
-# Below is the code that was used to fit the PIT boosting model
-# 
-# set.seed(100)
-# PIT_gbmFit1 <- train(x = pitX, y = pit$is_delayed,
-#                  method = "gbm",
-#                  trControl = ctrl,
-#                  ## This last option is actually one
-#                  ## for gbm() that passes through
-#                  verbose = FALSE)
-# 
-# saveRDS(PIT_gbmFit1, "PITBoosting.rds")
+# Fit Boosting models
+# PIT Boosting
+if (file.exists("PITBoosting.rds")) {
+  PIT_gbmFit1 <- readRDS("PITBoosting.rds")
+} else {
+  set.seed(100)
+  PIT_gbmFit1 <- train(x = pitX, y = pit$is_delayed,
+                        method = "gbm",
+                        trControl = ctrl,
+                        verbose = FALSE)
+  saveRDS(PIT_gbmFit1, "PITBoosting.rds")
+}
 
-# Below is the code that was used to fit the ORD boosting model
-# 
-# set.seed(100)
-# ORD_gbmFit1 <- train(x = ordX, y = ord$is_delayed,
-#                  method = "gbm",
-#                  trControl = ctrl,
-#                  ## This last option is actually one
-#                  ## for gbm() that passes through
-#                  verbose = FALSE)
-# 
-# saveRDS(ORD_gbmFit1, "ORDBoosting.rds")
-
-PIT_gbmFit1 <- readRDS("PITBoosting.rds")
-
-ORD_gbmFit1 <- readRDS("ORDBoosting.rds")
+# ORD Boosting
+if (file.exists("ORDBoosting.rds")) {
+  ORD_gbmFit1 <- readRDS("ORDBoosting.rds")
+} else {
+  set.seed(100)
+  ORD_gbmFit1 <- train(x = ordX, y = ord$is_delayed,
+                        method = "gbm",
+                        trControl = ctrl,
+                        verbose = FALSE)
+  saveRDS(ORD_gbmFit1, "ORDBoosting.rds")
+}
 ```
 
 ### Model Fitting
@@ -390,7 +389,6 @@ grid.arrange(cal_ord_short, cal_ord_long, cal_pit_short, cal_pit_long, ncol = 2)
 As seen in the calibration plot above, across both departure airports and delay intensities the gradient boosting and logistic regression models are well calibrated. In all 4 plots, the logistic regression models can be seen as more biased towards the more common outcome (no delay). Conversely, the random forest ORD model is poorly calibrated and the PIT model is extremely biased towards the no delay outcome.
 
 ```{r, echo=FALSE,message=FALSE,warning=FALSE}
-# Used claude to create these tables
 library(kableExtra)
 
 make_cal_table <- function(calData, caption) {
@@ -424,7 +422,6 @@ make_cal_table <- function(calData, caption) {
                        "Boosting"            = 2))
 }
 
-# For long delay tables, adjust column names in select/rename accordingly
 make_cal_table_long <- function(calData, caption) {
   calData$data %>%
     select(calibModelVar, bin, Percent, Count) %>%
@@ -478,7 +475,7 @@ The following section demonstrates an application of the gradient boosting model
 ### Find Underperforming Flight
 
 ```{r, echo=FALSE,message=FALSE,warning=FALSE}
-df <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv")
+df <- read.csv("final_project_dataset.csv")
 df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
                     Report_Month = month(Report_Date),
                     Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
