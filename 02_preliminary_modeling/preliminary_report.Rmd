@@ -15,6 +15,8 @@ library(tidyverse)
 library(caret)
 library(lattice)
 library(pls)
+
+# Import datasets
 df <- read.csv("final_project_dataset.csv")
 df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
                     Report_Month = month(Report_Date),
@@ -99,41 +101,47 @@ prop.table(table(not_cancelled$is_delayed))
 ### Logistic Regression
 
 ```{r,echo=FALSE, warning=FALSE}
-# Below is the code that was used to fit the logistic regression model
-# 
-# ctrl <- trainControl(method = "cv", number = 4, classProbs=TRUE, summaryFunction = twoClassSummary)
-# 
-# set.seed(100)
-# logisticReg <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
-#                  method = "glm",
-#                  preProc = c("center", "scale"),
-#                  trControl = ctrl,
-#                  metric = "ROC")
-# 
-# saveRDS(logisticReg, "LogisticRegression.rds")
-logisticReg <- readRDS("LogisticRegression.rds")
+# Fit Logistic Regression model
+if (file.exists("LogisticRegression.rds")) {
+  logisticReg <- readRDS("LogisticRegression.rds")
+} else {
+  ctrl <- trainControl(method = "cv", number = 4, classProbs = TRUE, summaryFunction = twoClassSummary)
+  
+  set.seed(100)
+  logisticReg <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
+                        method = "glm",
+                        preProc = c("center", "scale"),
+                        trControl = ctrl,
+                        metric = "ROC")
+  
+  saveRDS(logisticReg, "LogisticRegression.rds")
+}
+
 logisticReg$results
 ```
 
 ### Random forest
 
 ```{r,echo=FALSE}
-# Below is the code that was used to fit the random forest model
-# 
-# set.seed(100)
-# mtryGrid <- data.frame(
-#   mtry = c(1, 2, 3)
-# )
-# rfTune <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
-#                method = "rf",
-#                tuneGrid = mtryGrid,
-#                ntree = 200,
-#                importance = TRUE,
-#                trControl = ctrl,
-#                metric = "ROC")
-# 
-# saveRDS(rfTune, "RandomForest.rds")
-rfTune <- readRDS("RandomForest.rds")
+# Fit Random Forest model
+if (file.exists("RandomForest.rds")) {
+  rfTune <- readRDS("RandomForest.rds")
+} else {
+  set.seed(100)
+  mtryGrid <- data.frame(
+    mtry = c(1, 2, 3)
+  )
+  rfTune <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
+                  method = "rf",
+                  tuneGrid = mtryGrid,
+                  ntree = 200,
+                  importance = TRUE,
+                  trControl = ctrl,
+                  metric = "ROC")
+  
+  saveRDS(rfTune, "RandomForest.rds")
+}
+
 best_rf <- rfTune$results[which.max(rfTune$results$ROC), ]
 best_rf
 ```
@@ -141,19 +149,20 @@ best_rf
 ### Boosting
 
 ```{r,echo=FALSE}
-# Below is the code that was used to fit the boosting model
-# 
-# set.seed(100)
-# gbmFit1 <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
-#                  method = "gbm", 
-#                  trControl = ctrl,
-#                  ## This last option is actually one
-#                  ## for gbm() that passes through
-#                  verbose = FALSE,
-#                  metric = "ROC")
-# 
-# saveRDS(gbmFit1, "Boosting.rds")
-gbmFit1 <- readRDS("Boosting.rds")
+# Fit Boosting model
+if (file.exists("Boosting.rds")) {
+  gbmFit1 <- readRDS("Boosting.rds")
+} else {
+  set.seed(100)
+  gbmFit1 <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
+                   method = "gbm", 
+                   trControl = ctrl,
+                   verbose = FALSE,
+                   metric = "ROC")
+  
+  saveRDS(gbmFit1, "Boosting.rds")
+}
+
 best_gbm <- gbmFit1$results[which.max(gbmFit1$results$ROC), ]
 best_gbm
 ```
@@ -173,11 +182,9 @@ ggroc(list(`Logistic regression` = build_credit_roc(logisticReg),
 ```
 
 ```{r, echo=FALSE, message=FALSE,warning=FALSE}
-# Used claude to create this table
 library(knitr)
 library(kableExtra)
 
-# Create your data
 results <- data.frame(
   Model = c("Logistic Regression", "Random Forest", "Boosting"),
   CV_ROC = c(logisticReg$results$ROC, best_rf$ROC, best_gbm$ROC),
@@ -186,7 +193,6 @@ results <- data.frame(
   Specificity = c(logisticReg$results$Spec, best_rf$Spec, best_gbm$Spec)
 )
 
-# Basic nice table
 kable(results, 
       caption = "Model Comparison",
       digits = 3,
@@ -219,7 +225,6 @@ calibration_curve
 ```
 
 ```{r, echo=FALSE,message=FALSE,warning=FALSE}
-# Used claude to create this table
 cal_wide <- calData1$data %>%
   select(calibModelVar, midpoint, Percent, Count) %>%
   pivot_wider(

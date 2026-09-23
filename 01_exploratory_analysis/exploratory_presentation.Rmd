@@ -23,18 +23,9 @@ fontsize: 10pt
 <https://www.bts.gov/browse-statistical-products-and-data/bts-publications/airline-service-quality-performance-234-time>.
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-# This was used to save dataset to a csv
-#library(readxl)
-#p1 <- read_excel("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/Final Project Datasets.xlsx", sheet = "Oct-May")
-#p2 <- read_excel("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/Final Project Datasets.xlsx", sheet = "Jun-Sep")
-#combined <- rbind(p1, p2)
-#write.csv(combined, "C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv", row.names = FALSE)
-```
-
-```{r,echo=FALSE,warning=FALSE,message=FALSE}
 # Use this block of code to import the csv
 library(tidyverse)
-df <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv")
+df <- read.csv("final_project_dataset.csv")
 df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
                     Report_Month = month(Report_Date),
                     Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
@@ -152,7 +143,6 @@ ggplot(not_cancelled %>% filter(Departure.Delay < 250, Dep == 'PIT') %>% slice_s
 ## Causal relationships
 
 ```{r, echo=FALSE,warning=FALSE,message=FALSE}
-# Used claude to make this plot look nice. I came up with all the relationships myself
 library(ggdag)
 
 dag <- dagify(

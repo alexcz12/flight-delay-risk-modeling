@@ -14,12 +14,13 @@ fontsize: 10pt
 - For the scope of this project, we'll take United Airlines data between October 2024 and September 2025
 
 ```{r,echo=FALSE,warning=FALSE,message=FALSE}
-# Use this block of code to import the csv
 library(tidyverse)
 library(caret)
 library(lattice)
 library(pls)
-df <- read.csv("C:/Users/aczer/OneDrive/Documents/Pitt Classwork/8 - Senior Spring/Applied Data Analytics/final_project_dataset.csv")
+
+# Use this block of code to import the csv
+df <- read.csv("final_project_dataset.csv")
 df <- df %>% mutate(Report_Date = as.Date(Report_Date, origin = "1899-12-30"),
                     Report_Month = month(Report_Date),
                     Scheduled.Departure.Time = (Scheduled.Departure.Time %/% 100) * 60 + (Scheduled.Departure.Time %% 100),
@@ -99,54 +100,10 @@ not_cancelledX <- predict(dummies, newdata = not_cancelledX) %>% as.data.frame()
 ```
 
 ```{r,echo=FALSE, warning=FALSE}
-# Below is the code that was used to fit the logistic regression model
-# 
-# ctrl <- trainControl(method = "cv", number = 4, classProbs=TRUE, summaryFunction = twoClassSummary)
-# 
-# set.seed(100)
-# logisticReg <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
-#                  method = "glm",
-#                  preProc = c("center", "scale"),
-#                  trControl = ctrl,
-#                  metric = "ROC")
-# 
-# saveRDS(logisticReg, "LogisticRegression.rds")
+# Load in models
 logisticReg <- readRDS("LogisticRegression.rds")
-```
-
-```{r,echo=FALSE}
-# Below is the code that was used to fit the random forest model
-# 
-# set.seed(100)
-# mtryGrid <- data.frame(
-#   mtry = c(1, 2, 3)
-# )
-# rfTune <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
-#                method = "rf",
-#                tuneGrid = mtryGrid,
-#                ntree = 200,
-#                importance = TRUE,
-#                trControl = ctrl,
-#                metric = "ROC")
-# 
-# saveRDS(rfTune, "RandomForest.rds")
 rfTune <- readRDS("RandomForest.rds")
 best_rf <- rfTune$results[which.max(rfTune$results$ROC), ]
-```
-
-```{r,echo=FALSE}
-# Below is the code that was used to fit the boosting model
-# 
-# set.seed(100)
-# gbmFit1 <- train(x = not_cancelledX, y = not_cancelled$is_delayed,
-#                  method = "gbm", 
-#                  trControl = ctrl,
-#                  ## This last option is actually one
-#                  ## for gbm() that passes through
-#                  verbose = FALSE,
-#                  metric = "ROC")
-# 
-# saveRDS(gbmFit1, "Boosting.rds")
 gbmFit1 <- readRDS("Boosting.rds")
 best_gbm <- gbmFit1$results[which.max(gbmFit1$results$ROC), ]
 ```
@@ -154,7 +111,6 @@ best_gbm <- gbmFit1$results[which.max(gbmFit1$results$ROC), ]
 ## Model comparison
 
 ```{r, echo=FALSE, message=FALSE,warning=FALSE, fig.height=4.5}
-# Used claude to create this table
 library(knitr)
 library(kableExtra)
 library(pROC)
@@ -171,7 +127,6 @@ ggroc(list(`Logistic regression` = build_credit_roc(logisticReg),
 ```
 
 ```{r, echo=FALSE, message=FALSE,warning=FALSE}
-# Create your data
 results <- data.frame(
   Model = c("Logistic Regression", "Random Forest", "Boosting"),
   CV_ROC = c(logisticReg$results$ROC, best_rf$ROC, best_gbm$ROC),
@@ -180,7 +135,6 @@ results <- data.frame(
   Specificity = c(logisticReg$results$Spec, best_rf$Spec, best_gbm$Spec)
 )
 
-# Basic nice table
 kable(results, 
       digits = 3,
       booktabs = TRUE) %>%
@@ -215,7 +169,6 @@ calibration_curve
 ## Model calibration continued
 
 ```{r, echo=FALSE,message=FALSE,warning=FALSE}
-# Used claude to create this table
 cal_wide <- calData1$data %>%
   select(calibModelVar, midpoint, Percent, Count) %>%
   pivot_wider(
